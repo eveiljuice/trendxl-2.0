@@ -31,6 +31,8 @@ class TikTokPost(BaseModel):
     video_url: str = ""
     cover_image_url: str = ""
     hashtags: List[str] = []
+    author: "TikTokAuthor" = Field(default_factory=lambda: TikTokAuthor())
+    tiktok_url: str = ""  # Direct TikTok link
 
 
 class TikTokAuthor(BaseModel):

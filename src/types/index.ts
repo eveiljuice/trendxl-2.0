@@ -10,6 +10,13 @@ export interface TikTokProfile {
   is_verified: boolean;
 }
 
+// TikTok Author Type
+export interface TikTokAuthor {
+  username: string;
+  avatar_url: string;
+  is_verified: boolean;
+}
+
 // TikTok Post Data Types
 export interface TikTokPost {
   id: string;
@@ -23,6 +30,8 @@ export interface TikTokPost {
   video_url: string;
   cover_image_url: string;
   hashtags: string[];
+  author: TikTokAuthor;
+  tiktok_url: string; // Direct TikTok link
 }
 
 // Hashtag Analysis Types
@@ -44,11 +53,7 @@ export interface TrendVideo {
   video_url: string;
   cover_image_url: string;
   hashtag: string;
-  author: {
-    username: string;
-    avatar_url: string;
-    is_verified: boolean;
-  };
+  author: TikTokAuthor;
 }
 
 // API Response Types

@@ -4,9 +4,17 @@ import LoadingSpinner from './LoadingSpinner';
 
 interface LoadingStatesProps {
   stage: 'profile' | 'posts' | 'analysis' | 'trends';
+  message?: string;
+  percentage?: number;
+  startTime?: Date | null;
 }
 
-const LoadingStates: React.FC<LoadingStatesProps> = ({ stage }) => {
+const LoadingStates: React.FC<LoadingStatesProps> = ({ 
+  stage, 
+  message = '',
+  percentage = 0,
+  startTime 
+}) => {
   const stages = [
     {
       id: 'profile',
@@ -35,6 +43,14 @@ const LoadingStates: React.FC<LoadingStatesProps> = ({ stage }) => {
   ];
 
   const currentStageIndex = stages.findIndex(s => s.id === stage);
+  
+  // Calculate elapsed time
+  const elapsedTime = startTime ? Math.floor((Date.now() - startTime.getTime()) / 1000) : 0;
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   return (
     <div className="section-spacing animate-fade-in">
@@ -50,6 +66,11 @@ const LoadingStates: React.FC<LoadingStatesProps> = ({ stage }) => {
           <p className="text-text-secondary">
             Using AI to find the hottest videos
           </p>
+          {startTime && (
+            <div className="mt-2 text-sm text-text-tertiary">
+              ⏱️ Elapsed: {formatTime(elapsedTime)} • {percentage}% complete
+            </div>
+          )}
         </div>
 
         {/* Progress Steps */}
@@ -102,7 +123,7 @@ const LoadingStates: React.FC<LoadingStatesProps> = ({ stage }) => {
                     {stageItem.title}
                   </h3>
                   <p className="text-text-secondary text-sm">
-                    {stageItem.description}
+                    {isActive && message ? message : stageItem.description}
                   </p>
                 </div>
 
@@ -125,15 +146,20 @@ const LoadingStates: React.FC<LoadingStatesProps> = ({ stage }) => {
             <div 
               className="bg-primary-accent h-full transition-all duration-500 ease-out"
               style={{ 
-                width: `${((currentStageIndex + 1) / stages.length) * 100}%` 
+                width: `${Math.max(percentage, ((currentStageIndex + 1) / stages.length) * 100)}%` 
               }}
             />
           </div>
           <div className="flex justify-between mt-2 text-xs text-text-secondary">
             <span>Start</span>
-            <span>{Math.round(((currentStageIndex + 1) / stages.length) * 100)}%</span>
+            <span>{Math.round(Math.max(percentage, ((currentStageIndex + 1) / stages.length) * 100))}%</span>
             <span>Complete</span>
           </div>
+          {startTime && percentage > 0 && percentage < 100 && (
+            <div className="text-center mt-2 text-xs text-text-tertiary">
+              Estimated time remaining: ~{Math.max(0, Math.ceil((elapsedTime / percentage) * (100 - percentage)))}s
+            </div>
+          )}
         </div>
       </div>
     </div>

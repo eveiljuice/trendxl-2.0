@@ -112,7 +112,7 @@ export function formatNumber(num: number): string {
 }
 
 /**
- * Format date to relative time (e.g., "2 days ago")
+ * Format date to relative time in English (e.g., "2 days ago")
  */
 export function formatRelativeTime(dateString: string): string {
   const date = new Date(dateString);
@@ -120,21 +120,23 @@ export function formatRelativeTime(dateString: string): string {
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
   
   const intervals = [
-    { label: 'год', seconds: 31536000 },
-    { label: 'месяц', seconds: 2592000 },
-    { label: 'день', seconds: 86400 },
-    { label: 'час', seconds: 3600 },
-    { label: 'минуту', seconds: 60 },
+    { label: 'year', labelPlural: 'years', seconds: 31536000 },
+    { label: 'month', labelPlural: 'months', seconds: 2592000 },
+    { label: 'week', labelPlural: 'weeks', seconds: 604800 },
+    { label: 'day', labelPlural: 'days', seconds: 86400 },
+    { label: 'hour', labelPlural: 'hours', seconds: 3600 },
+    { label: 'minute', labelPlural: 'minutes', seconds: 60 },
   ];
   
   for (const interval of intervals) {
     const count = Math.floor(diffInSeconds / interval.seconds);
     if (count > 0) {
-      return `${count} ${interval.label}${count > 1 ? (interval.label === 'час' ? 'а' : interval.label === 'день' ? 'я' : interval.label === 'месяц' ? 'а' : interval.label === 'год' ? 'а' : 'ы') : (interval.label === 'минуту' ? 'у' : '')} назад`;
+      const labelToUse = count === 1 ? interval.label : interval.labelPlural;
+      return `${count} ${labelToUse} ago`;
     }
   }
   
-  return 'только что';
+  return 'just now';
 }
 
 /**

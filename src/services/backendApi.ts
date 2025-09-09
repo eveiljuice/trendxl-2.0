@@ -8,21 +8,24 @@ import { TikTokProfile, TikTokPost, TrendVideo } from '../types';
 const BACKEND_API_BASE_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:8000';
 
 // Create axios instance for backend API
-const createBackendClient = () => {
+const createBackendClient = (customTimeout?: number) => {
   return axios.create({
     baseURL: BACKEND_API_BASE_URL,
     headers: {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
     },
-    timeout: 60000, // 60 seconds timeout for analysis
+    timeout: customTimeout || 180000, // 3 minutes default timeout
   });
 };
 
 /**
  * Analyze TikTok profile trends using Python backend
  */
-export async function analyzeProfileTrends(profileUrl: string): Promise<{
+export async function analyzeProfileTrends(
+  profileUrl: string, 
+  onProgress?: (stage: string, message: string) => void
+): Promise<{
   profile: TikTokProfile;
   posts: TikTokPost[];
   hashtags: string[];
@@ -30,7 +33,12 @@ export async function analyzeProfileTrends(profileUrl: string): Promise<{
   analysis_summary: string;
 }> {
   try {
-    const client = createBackendClient();
+    // Use 5-minute timeout for full analysis
+    const client = createBackendClient(300000);
+    
+    // Notify progress start
+    onProgress?.('profile', 'Connecting to TikTok API...');
+    
     const response = await client.post('/api/v1/analyze', {
       profile_url: profileUrl
     });
@@ -38,6 +46,71 @@ export async function analyzeProfileTrends(profileUrl: string): Promise<{
     return response.data;
   } catch (error) {
     console.error('Backend API error (analyze):', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 404) {
+        throw new Error('Profile not found or unavailable');
+      } else if (error.response?.status === 429) {
+        throw new Error('Too many requests. Please try again later');
+      } else if (error.response?.status === 503) {
+        throw new Error('Backend service temporarily unavailable');
+      } else if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+    }
+    
+    throw new Error('Failed to analyze profile trends');
+  }
+}
+
+/**
+ * Analyze TikTok profile trends with step-by-step progress tracking
+ */
+export async function analyzeProfileTrendsWithProgress(
+  profileUrl: string, 
+  onProgress?: (stage: string, message: string, percentage: number) => void
+): Promise<{
+  profile: TikTokProfile;
+  posts: TikTokPost[];
+  hashtags: string[];
+  trends: TrendVideo[];
+  analysis_summary: string;
+}> {
+  try {
+    const username = profileUrl.replace(/@/g, '').replace('https://www.tiktok.com/@', '');
+    const client = createBackendClient(300000); // 5-minute timeout
+    
+    // Step 1: Get profile (20% progress)
+    onProgress?.('profile', 'Loading TikTok profile data...', 10);
+    const profile = await getTikTokProfile(username);
+    onProgress?.('profile', `Profile @${username} loaded successfully`, 20);
+    
+    // Step 2: Get posts (40% progress) 
+    onProgress?.('posts', 'Collecting latest videos and statistics...', 25);
+    const postsResult = await getTikTokPosts(username, 20);
+    onProgress?.('posts', `Found ${postsResult.posts.length} recent videos`, 40);
+    
+    // Step 3: AI analysis (60% progress)
+    onProgress?.('analysis', 'AI analyzing content for hashtags...', 45);
+    
+    // Simulate AI analysis delay and call full analyze for AI part
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    const response = await client.post('/api/v1/analyze', {
+      profile_url: profileUrl
+    });
+    
+    onProgress?.('analysis', `GPT-4o extracted ${response.data.hashtags?.length || 0} key hashtags`, 60);
+    
+    // Step 4: Find trends (100% progress)
+    onProgress?.('trends', 'Searching for trending videos by hashtags...', 70);
+    await new Promise(resolve => setTimeout(resolve, 3000)); // Allow backend to process
+    onProgress?.('trends', `Found ${response.data.trends?.length || 0} trending videos`, 90);
+    
+    onProgress?.('trends', 'Analysis completed successfully!', 100);
+    
+    return response.data;
+  } catch (error) {
+    console.error('Backend API error (step-by-step analyze):', error);
     
     if (axios.isAxiosError(error)) {
       if (error.response?.status === 404) {

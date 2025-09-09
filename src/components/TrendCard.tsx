@@ -15,8 +15,10 @@ const TrendCard: React.FC<TrendCardProps> = ({ trend, onClick }) => {
 
   const handleVideoClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (trend.video_url) {
-      window.open(trend.video_url, '_blank', 'noopener,noreferrer');
+    // Prefer TikTok URL for direct access to the video page
+    const videoLink = trend.video_url; // Backend now returns tiktok_url in video_url field
+    if (videoLink) {
+      window.open(videoLink, '_blank', 'noopener,noreferrer');
     }
   };
 

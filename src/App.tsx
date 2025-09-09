@@ -19,6 +19,7 @@ function App() {
     hashtags,
     trends,
     error,
+    progress,
     analyzeTrends,
     resetAnalysis,
     retryAnalysis,
@@ -71,7 +72,12 @@ function App() {
 
         {/* Loading State */}
         {isLoading && !error && (
-          <LoadingStates stage={getLoadingStage()} />
+          <LoadingStates 
+            stage={progress.stage}
+            message={progress.message}
+            percentage={progress.percentage}
+            startTime={progress.startTime}
+          />
         )}
 
         {/* Initial State - Profile Input */}
