@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom scrollbar for Apple-like design */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2a30;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a40;
+}
+
+/* Smooth transitions for all interactive elements */
+* {
+  transition: all 150ms ease-out;
+}
+
+/* Focus styles for accessibility */
+*:focus {
+  outline: 2px solid #0000ff;
+  outline-offset: 2px;
+}
+
+/* Remove focus outline for mouse users */
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Custom utility classes */
+@layer components {
+  .btn-primary {
+    @apply bg-primary-accent text-white px-6 py-3 rounded-btn font-medium 
+           hover:bg-primary-accent-hover hover:shadow-accent 
+           focus:ring-2 focus:ring-primary-accent focus:ring-offset-2 focus:ring-offset-primary-bg
+           transition-all duration-150 ease-out;
+  }
+
+  .card {
+    @apply bg-primary-card p-8 rounded-card border border-primary-line;
+  }
+
+  .section-spacing {
+    @apply mb-16;
+  }
+
+  .element-spacing {
+    @apply mb-6;
+  }
+}

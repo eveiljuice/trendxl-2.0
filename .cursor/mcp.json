@@ -1,0 +1,15 @@
+{
+    "mcpServers": {
+      "memory": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@itseasy21/mcp-knowledge-graph"
+        ],
+        "env": {
+          "MEMORY_FILE_PATH": "C:\\Users\\ok\\Desktop\\timo\\trendxl 2.0\\memory.json"
+        }
+      }
+    }
+  }
+  
