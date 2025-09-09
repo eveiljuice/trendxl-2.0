@@ -18,9 +18,8 @@ services:
       - fromGroup: trendxl-api-keys
 
   # Frontend Service (React Static Site)
-  - type: web
+  - type: static
     name: trendxl-20-frontend
-    runtime: static
     region: frankfurt # или ohio
     plan: free
     branch: main
