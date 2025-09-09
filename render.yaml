@@ -21,18 +21,19 @@ services:
   - type: web
     name: trendxl-20-frontend
     env: static
-    region: frankfurt # или ohio
     plan: free
     branch: main
     rootDir: .
     buildCommand: "npm install && npm run build"
     staticPublishPath: ./dist
     envVars:
-      - key: VITE_BACKEND_API_URL
+      - key: BACKEND_HOST
         fromService:
           type: web
           name: trendxl-20-backend
-          property: url
+          property: host
+      - key: VITE_BACKEND_API_URL
+        value: https://$(BACKEND_HOST)
 
 # Группа переменных окружения для API ключей
 envVarGroups:
