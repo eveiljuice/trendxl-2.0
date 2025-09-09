@@ -35,13 +35,14 @@ class Settings(BaseSettings):
     # CORS Settings
     cors_origins: List[str] = Field(
         default=[
-            "http://localhost:3000", 
+            "http://localhost:3000",
             "http://localhost:5173",
-            "https://*.railway.app",
-            "https://*.up.railway.app"
         ],
         env="CORS_ORIGINS"
     )
+    # Optional regex to allow dynamic subdomains (e.g., Railway)
+    # Example: CORS_ORIGIN_REGEX="https?://.*\\.railway\\.app$|https?://.*\\.up\\.railway\\.app$"
+    cors_origin_regex: Optional[str] = Field(default=None, env="CORS_ORIGIN_REGEX")
 
     # Rate Limiting
     max_requests_per_minute: int = Field(
