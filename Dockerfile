@@ -3,9 +3,10 @@ FROM node:18-alpine AS frontend-builder
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files and install ALL dependencies (including devDependencies for build)
+# CACHE_BUST=2024-01-09
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --include=dev
 
 # Copy source files and build
 COPY . .
