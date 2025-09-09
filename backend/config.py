@@ -26,11 +26,13 @@ class Settings(BaseSettings):
     # Server Configuration
     host: str = Field(default="0.0.0.0", env="HOST")
     port: int = Field(default=8000, env="PORT")
-    debug: bool = Field(default=False, env="DEBUG")  # Disable debug in production
+    # Disable debug in production
+    debug: bool = Field(default=False, env="DEBUG")
 
     # Redis Configuration (Railway Redis addon URL format)
     redis_url: str = Field(default="redis://localhost:6379", env="REDIS_URL")
-    redis_private_url: Optional[str] = Field(None, env="REDIS_PRIVATE_URL")  # Railway private URL
+    redis_private_url: Optional[str] = Field(
+        None, env="REDIS_PRIVATE_URL")  # Railway private URL
 
     # CORS Settings
     cors_origins: List[str] = Field(
@@ -42,7 +44,8 @@ class Settings(BaseSettings):
     )
     # Optional regex to allow dynamic subdomains (e.g., Railway)
     # Example: CORS_ORIGIN_REGEX="https?://.*\\.railway\\.app$|https?://.*\\.up\\.railway\\.app$"
-    cors_origin_regex: Optional[str] = Field(default=None, env="CORS_ORIGIN_REGEX")
+    cors_origin_regex: Optional[str] = Field(
+        default=None, env="CORS_ORIGIN_REGEX")
 
     # Rate Limiting
     max_requests_per_minute: int = Field(
