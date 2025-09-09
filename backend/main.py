@@ -30,7 +30,7 @@ from utils import RateLimiter, get_current_timestamp
 
 # Configure logging
 logging.basicConfig(
-    level=logging.DEBUG if settings.debug else logging.WARNING,
+    level=logging.DEBUG if settings.debug else logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
