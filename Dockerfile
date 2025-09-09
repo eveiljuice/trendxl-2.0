@@ -21,15 +21,16 @@ RUN apk add --no-cache curl
 # Copy built files from builder stage
 COPY --from=frontend-builder /app/dist /usr/share/nginx/html
 
-# Copy custom nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
+# Provide nginx template consumed by official entrypoint
+# It will be rendered to /etc/nginx/conf.d/default.conf using envsubst
+COPY nginx.default.conf.template /etc/nginx/templates/default.conf.template
 
 # Expose port 80
 EXPOSE 80
 
-# Health check
+# Health check (uses dynamic PORT provided by Railway)
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:80 || exit 1
+    CMD sh -c 'curl -sf http://127.0.0.1:${PORT:-80}/health || exit 1'
 
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]
