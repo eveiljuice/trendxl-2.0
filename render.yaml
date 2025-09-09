@@ -2,7 +2,7 @@ services:
   # Backend Service (Python FastAPI)
   - type: web
     name: trendxl-20-backend
-    runtime: python
+    env: python
     region: frankfurt # или ohio
     plan: free
     branch: main
@@ -18,13 +18,15 @@ services:
       - fromGroup: trendxl-api-keys
 
   # Frontend Service (React Static Site)
-  - type: static
+  - type: web
     name: trendxl-20-frontend
+    env: static
     region: frankfurt # или ohio
     plan: free
     branch: main
+    rootDir: .
     buildCommand: "npm install && npm run build"
-    publishDir: ./dist
+    staticPublishPath: ./dist
     envVars:
       - key: VITE_BACKEND_API_URL
         fromService:
