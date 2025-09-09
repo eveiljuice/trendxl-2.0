@@ -10,6 +10,10 @@ RUN npm ci --include=dev
 
 # Copy source files and build
 COPY . .
+
+# Use production environment variables for build
+COPY .env.production .env
+
 RUN npm run build
 
 # Production stage - serve static files with nginx
