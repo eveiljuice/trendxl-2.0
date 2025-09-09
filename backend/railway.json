@@ -16,7 +16,6 @@
         "PYTHONPATH": "/app",
         "PYTHONUNBUFFERED": "1",
         "HOST": "0.0.0.0",
-        "PORT": "$PORT",
         "DEBUG": "false"
       }
     }
