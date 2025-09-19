@@ -1,5 +1,6 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
+  "name": "TrendXL Backend (Local)",
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "Dockerfile"
@@ -16,8 +17,16 @@
         "PYTHONPATH": "/app",
         "PYTHONUNBUFFERED": "1",
         "HOST": "0.0.0.0",
-        "DEBUG": "false"
+        "PORT": "${{RAILWAY_PORT}}",
+        "DEBUG": "false",
+        "ENVIRONMENT": "production",
+        "LOG_LEVEL": "INFO"
       }
     }
+  },
+  "healthcheck": {
+    "path": "/health",
+    "timeout": 30,
+    "interval": 60
   }
 }

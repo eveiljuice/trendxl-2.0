@@ -1,6 +1,6 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
-  "name": "TrendXL Backend (Default)",
+  "name": "TrendXL Backend API",
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "Dockerfile.backend"
@@ -20,7 +20,8 @@
         "PORT": "${{RAILWAY_PORT}}",
         "DEBUG": "false",
         "ENVIRONMENT": "production",
-        "LOG_LEVEL": "INFO"
+        "LOG_LEVEL": "INFO",
+        "CORS_ORIGINS": "https://${{Frontend.RAILWAY_PUBLIC_DOMAIN}},http://localhost:5173"
       }
     }
   },

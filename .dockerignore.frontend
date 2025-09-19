@@ -1,0 +1,67 @@
+# TrendXL Frontend .dockerignore
+# Ignore backend files when building frontend
+
+# Backend files
+backend/
+*.py
+*.pyc
+__pycache__/
+requirements.txt
+Dockerfile.backend
+railway.backend.json
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Build outputs (except what we need)
+.env.local
+.env.development.local
+.env.test.local
+# Don't ignore .env.production - needed for build
+
+# Development
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+coverage/
+.nyc_output/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+README.md
+
+# Logs
+logs/
+*.log
+
+# Railway configs for other services
+railway.backend.json
+railway-backend.json
+
+# Python cache
+*.pyc
+__pycache__/
+
+# Only include what frontend needs:
+# - package.json, package-lock.json
+# - src/, public/
+# - index.html
+# - vite.config.ts, tsconfig.json
+# - tailwind.config.js, postcss.config.js
+# - .env.production
