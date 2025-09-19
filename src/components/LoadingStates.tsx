@@ -53,8 +53,8 @@ const LoadingStates: React.FC<LoadingStatesProps> = ({
   };
 
   return (
-    <div className="section-spacing animate-fade-in">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-[60vh] flex items-center justify-center animate-fade-in">
+      <div className="max-w-2xl mx-auto w-full">
         {/* Header */}
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-accent/10 rounded-full mb-6 animate-pulse-slow">

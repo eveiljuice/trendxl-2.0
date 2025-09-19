@@ -8,6 +8,13 @@ export interface TikTokProfile {
   video_count: number;
   avatar_url: string;
   is_verified: boolean;
+  
+  // Niche analysis fields from Perplexity API
+  niche_category?: string;
+  niche_description?: string;
+  key_topics?: string[];
+  target_audience?: string;
+  content_style?: string;
 }
 
 // TikTok Author Type
@@ -29,6 +36,8 @@ export interface TikTokPost {
   create_time: string;
   video_url: string;
   cover_image_url: string;
+  // Support for multiple images (for image posts or additional video thumbnails)
+  images: string[];
   hashtags: string[];
   author: TikTokAuthor;
   tiktok_url: string; // Direct TikTok link
@@ -52,8 +61,12 @@ export interface TrendVideo {
   create_time: string;
   video_url: string;
   cover_image_url: string;
+  // Support for multiple images (for image posts or additional video thumbnails)
+  images: string[];
   hashtag: string;
   author: TikTokAuthor;
+  tiktok_url?: string; // Direct TikTok link for better video access
+  relevance_score?: number; // Content relevance score from GPT-4 Vision (0.0-1.0)
 }
 
 // API Response Types

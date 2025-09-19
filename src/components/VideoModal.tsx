@@ -48,11 +48,7 @@ const VideoModal: React.FC<VideoModalProps> = ({ trend, isOpen, onClose }) => {
       className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={handleBackdropClick}
     >
-      <div className="
-        bg-primary-card border border-primary-line rounded-card
-        max-w-2xl w-full max-h-[90vh] overflow-y-auto
-        animate-fade-in
-      ">
+      <div className="bg-primary-card border border-primary-line rounded-card max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-fade-in">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-primary-line">
           <div className="flex items-center space-x-3">
@@ -65,11 +61,7 @@ const VideoModal: React.FC<VideoModalProps> = ({ trend, isOpen, onClose }) => {
           </div>
           <button
             onClick={onClose}
-            className="
-              p-2 hover:bg-primary-line rounded-btn
-              text-text-secondary hover:text-text-primary
-              transition-colors duration-150
-            "
+            className="p-2 hover:bg-primary-line rounded-btn text-text-secondary hover:text-text-primary transition-colors duration-150"
           >
             <X className="w-5 h-5" />
           </button>
@@ -77,13 +69,13 @@ const VideoModal: React.FC<VideoModalProps> = ({ trend, isOpen, onClose }) => {
 
         {/* Content */}
         <div className="p-6 space-y-6">
-          {/* Video Preview */}
+          {/* Video Preview with Multi-Image Support */}
           <div className="relative">
             <div className="aspect-[9/16] max-h-96 bg-primary-line rounded-card overflow-hidden">
               {trend.cover_image_url ? (
                 <img
                   src={trend.cover_image_url}
-                  alt="Video thumbnail"
+                  alt="Content thumbnail"
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -98,14 +90,37 @@ const VideoModal: React.FC<VideoModalProps> = ({ trend, isOpen, onClose }) => {
               )}
             </div>
 
+            {/* Additional Images Gallery */}
+            {trend.images && trend.images.length > 0 && (
+              <div className="mt-3 flex space-x-2 overflow-x-auto pb-2">
+                {trend.images.slice(0, 5).map((imageUrl, index) => (
+                  <div
+                    key={index}
+                    className="flex-shrink-0 w-16 h-16 bg-primary-line rounded-md overflow-hidden"
+                  >
+                    <img
+                      src={imageUrl}
+                      alt={`Additional image ${index + 1}`}
+                      className="w-full h-full object-cover hover:scale-110 transition-transform cursor-pointer"
+                      onClick={() => {
+                        window.open(imageUrl, '_blank');
+                      }}
+                    />
+                  </div>
+                ))}
+                {trend.images.length > 5 && (
+                  <div className="flex-shrink-0 w-16 h-16 bg-primary-line rounded-md flex items-center justify-center">
+                    <span className="text-xs text-text-secondary">+{trend.images.length - 5}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Open Video Button */}
             {trend.video_url && (
               <button
                 onClick={handleOpenVideo}
-                className="
-                  absolute bottom-4 right-4
-                  btn-primary flex items-center space-x-2
-                "
+                className="absolute bottom-4 right-4 btn-primary flex items-center space-x-2"
               >
                 <ExternalLink className="w-4 h-4" />
                 <span>Open video</span>

@@ -26,6 +26,8 @@ from models import (
 )
 from services.trend_analysis_service import trend_service
 from services.cache_service import cache_service
+from services.perplexity_service import perplexity_service
+from services.content_relevance_service import content_relevance_service
 from utils import RateLimiter, get_current_timestamp
 
 # Configure logging
@@ -53,13 +55,21 @@ async def lifespan(app: FastAPI):
     # Test API keys
     ensemble_token = getattr(settings, 'ensemble_api_token', None)
     openai_key = getattr(settings, 'openai_api_key', None)
+    perplexity_key = getattr(settings, 'perplexity_api_key', None)
 
     logger.info(
         f"🔑 Ensemble API: {'✅ Configured' if ensemble_token else '❌ Missing'}")
     logger.info(
         f"🔑 OpenAI API: {'✅ Configured' if openai_key else '❌ Missing'}")
+    logger.info(
+        f"🔑 Perplexity API: {'✅ Configured' if perplexity_key else '❌ Missing'}")
 
-    if not ensemble_token or not openai_key:
+    # Test Perplexity service health
+    perplexity_healthy = await perplexity_service.health_check()
+    logger.info(
+        f"🎯 Perplexity service: {'✅ Connected' if perplexity_healthy else '❌ Disconnected (fallback mode)'}")
+
+    if not ensemble_token or not openai_key or not perplexity_key:
         logger.warning(
             "⚠️  Some API keys missing - service will use fallback/demo mode")
     else:
@@ -69,6 +79,8 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("🛑 TrendXL 2.0 Backend shutting down...")
+    await perplexity_service.close()
+    await content_relevance_service.close()
 
 # Create FastAPI app
 app = FastAPI(
@@ -155,7 +167,8 @@ async def health_check():
         services={
             "cache": cache_status,
             "ensemble_api": True,  # Will be tested in actual requests
-            "openai_api": True     # Will be tested in actual requests
+            "openai_api": True,    # Will be tested in actual requests
+            "perplexity_api": await perplexity_service.health_check()
         }
     )
 
@@ -187,7 +200,8 @@ async def get_status():
         "services": {
             "cache": cache_healthy,
             "ensemble_api": bool(getattr(settings, 'ensemble_api_token', None)),
-            "openai_api": bool(getattr(settings, 'openai_api_key', None))
+            "openai_api": bool(getattr(settings, 'openai_api_key', None)),
+            "perplexity_api": bool(getattr(settings, 'perplexity_api_key', None))
         },
         "config": {
             "debug": settings.debug,
@@ -224,11 +238,11 @@ async def analyze_trends(
             logger.info(f"📋 Returning cached analysis for @{username}")
             return cached_result
 
-        # Perform new analysis
+        # Perform new analysis - increased videos per hashtag to ensure 10+ total videos
         result = await trend_service.analyze_profile_trends(
             profile_input=request.profile_url,
             max_hashtags=5,
-            videos_per_hashtag=2
+            videos_per_hashtag=4  # Increased from 2 to 4 to get more videos
         )
 
         logger.info(f"✅ Analysis completed for @{username}")
@@ -240,8 +254,11 @@ async def analyze_trends(
         # Return appropriate error message
         if "not found" in str(e).lower():
             raise HTTPException(status_code=404, detail=str(e))
-        elif "rate limit" in str(e).lower():
-            raise HTTPException(status_code=429, detail=str(e))
+        elif "rate limit" in str(e).lower() or "too many requests" in str(e).lower():
+            raise HTTPException(
+                status_code=429,
+                detail="Too many requests. Please try again in a few minutes. The API has usage limits to ensure fair access for all users."
+            )
         elif "authentication" in str(e).lower() or "api key" in str(e).lower():
             raise HTTPException(
                 status_code=503, detail="API service temporarily unavailable")

@@ -4,6 +4,7 @@ Updated for official Ensemble Data SDK compatibility
 """
 import asyncio
 import logging
+from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from models import (
     TikTokProfile,
@@ -14,9 +15,12 @@ from models import (
 )
 from services.ensemble_service import EnsembleService
 from services.openai_service import OpenAIService
+from services.perplexity_service import perplexity_service
+from services.content_relevance_service import content_relevance_service
 from services.cache_service import cache_service
 from utils import extract_tiktok_username
 from config import settings
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -84,45 +88,124 @@ class TrendAnalysisService:
                 hashtags, videos_per_hashtag
             )
 
+            # If we don't have enough videos (target is 10), try to get more
+            target_video_count = 10
+            if len(trends) < target_video_count:
+                logger.info(
+                    f"📈 Got {len(trends)} videos, trying to get more (target: {target_video_count})")
+
+                # Try with popular backup hashtags
+                backup_hashtags = ['fyp', 'viral', 'trending', 'foryou',
+                                   'tiktok', 'dance', 'comedy', 'music', 'lifestyle']
+                needed_videos = target_video_count - len(trends)
+                videos_per_backup = max(
+                    1, needed_videos // len(backup_hashtags))
+
+                logger.info(
+                    f"🔄 Searching {videos_per_backup} videos from {len(backup_hashtags)} backup hashtags")
+                backup_trends = await self._search_trending_videos_optimized(
+                    backup_hashtags, videos_per_backup
+                )
+
+                # Combine and deduplicate trends
+                all_trends = trends + backup_trends
+                seen_ids = set()
+                unique_trends = []
+
+                for trend in all_trends:
+                    if trend.id not in seen_ids:
+                        seen_ids.add(trend.id)
+                        unique_trends.append(trend)
+
+                trends = unique_trends[:target_video_count]
+                logger.info(
+                    f"✅ Final video count after backup search: {len(trends)}")
+
             if not trends:
-                logger.warning(
-                    "⚠️ No trends found for extracted hashtags, trying popular backup hashtags...")
-                # Try with popular backup hashtags if no trends found
-                backup_hashtags = ['fyp', 'viral',
-                                   'trending', 'foryou', 'tiktok']
-                trends = await self._search_trending_videos_optimized(backup_hashtags, videos_per_hashtag)
+                logger.error(
+                    "❌ No trending videos found for any hashtags including backups")
+                raise Exception(
+                    f"Unable to find trending content for profile @{username}. "
+                    f"This could be due to: 1) Profile content is too niche, "
+                    f"2) API rate limits exceeded, 3) Temporary service issues. "
+                    f"Please try again later or with a different profile."
+                )
 
-                if not trends:
-                    # Real error handling without mock data
-                    logger.error(
-                        "❌ No trending videos found for any hashtags including backups")
-                    raise Exception(
-                        f"Unable to find trending content for profile @{username}. "
-                        f"This could be due to: 1) Profile content is too niche, "
-                        f"2) API rate limits exceeded, 3) Temporary service issues. "
-                        f"Please try again later or with a different profile."
-                    )
+            # Enhanced quality filtering and sorting
+            logger.info(
+                f"📊 Filtering {len(trends)} trends by quality metrics...")
 
-            # Sort trends by engagement and limit results
-            sorted_trends = sorted(
-                trends,
-                key=lambda t: t.views + t.likes * 10,
-                reverse=True
-            )[:10]  # Top 10 trends
+            # Filter trends by quality criteria
+            quality_trends = []
+            for trend in trends:
+                # Calculate engagement rate
+                engagement_rate = (
+                    trend.likes + trend.comments + trend.shares) / max(trend.views, 1)
+
+                # Filter 1: Minimum engagement rate (2%+)
+                if engagement_rate < 0.02:
+                    continue
+
+                # Filter 2: Minimum performance thresholds
+                if trend.views < 10000 or trend.likes < 200:
+                    continue
+
+                # Filter 3: Freshness - not older than 2 weeks
+                if self._days_since_creation(trend.create_time) > 14:
+                    continue
+
+                quality_trends.append(trend)
 
             logger.info(
-                f"✅ Analysis completed! Found {len(sorted_trends)} trending videos")
+                f"✅ {len(quality_trends)} trends passed quality filters")
+
+            if not quality_trends:
+                # Fallback: if no trends pass quality filters, use relaxed criteria
+                logger.warning(
+                    "⚠️ No trends passed strict quality filters, using relaxed criteria...")
+                quality_trends = [
+                    t for t in trends if t.views > 5000 and t.likes > 50][:30]
+
+            # Enhanced sorting with weighted metrics
+            engagement_sorted_trends = sorted(
+                quality_trends,
+                key=lambda t: (
+                    t.views * 0.3 +           # Views weight
+                    t.likes * 8 +             # Likes are important
+                    t.comments * 15 +         # Comments show engagement
+                    t.shares * 20 +           # Shares indicate viral potential
+                    # Bonus for high engagement rate
+                    ((t.likes + t.comments + t.shares) / max(t.views, 1)) * 50000
+                ),
+                reverse=True
+            )[:30]  # Increased from 20 to 30 for better selection
+
+            # Step 5: Analyze content relevance with GPT-4 Vision
+            logger.info(
+                "🎨 Step 5: Analyzing content relevance with GPT-4 Vision...")
+            relevance_sorted_trends = await content_relevance_service.analyze_trends_relevance(
+                engagement_sorted_trends,
+                profile.niche_category,
+                profile.niche_description,
+                profile.key_topics
+            )
+
+            # Take top 10 most relevant trends
+            final_trends = relevance_sorted_trends[:10]
+
+            logger.info(
+                f"✅ Analysis completed! Found {len(final_trends)} trending videos with relevance scores")
 
             # Cache the complete analysis result
             await self._cache_analysis_result(
-                username, profile, posts, hashtags, sorted_trends, analysis.analysis_summary
+                username, profile, posts, hashtags, final_trends, analysis.analysis_summary
             )
 
             return TrendAnalysisResponse(
                 profile=profile,
                 posts=posts,
                 hashtags=hashtags,
-                trends=sorted_trends,
+                trends=final_trends,
                 analysis_summary=analysis.analysis_summary
             )
 
@@ -131,7 +214,7 @@ class TrendAnalysisService:
             raise Exception(f"Analysis failed for @{username}: {str(e)}")
 
     async def _get_cached_profile(self, username: str) -> TikTokProfile:
-        """Get profile with caching"""
+        """Get profile with caching and niche analysis"""
         cache_key = f"profile:{username}"
 
         # Try to get from cache
@@ -143,7 +226,10 @@ class TrendAnalysisService:
         # Fetch from API
         profile = await self.ensemble_service.get_profile(username)
 
-        # Cache the result
+        # Enhance profile with niche analysis
+        profile = await self._enhance_profile_with_niche(profile, username)
+
+        # Cache the enhanced result
         await cache_service.set("profile", username, profile.model_dump())
 
         return profile
@@ -165,6 +251,55 @@ class TrendAnalysisService:
         await cache_service.set("posts", cache_key, [post.model_dump() for post in posts])
 
         return posts
+
+    async def _enhance_profile_with_niche(self, profile: TikTokProfile, username: str) -> TikTokProfile:
+        """Enhance profile with niche analysis using Perplexity"""
+        try:
+            logger.info(
+                f"🎯 Enhancing profile with niche analysis for @{username}")
+
+            # Get recent posts for niche analysis
+            recent_posts = await self.ensemble_service.get_posts(username, count=10)
+            post_captions = [
+                post.caption for post in recent_posts if post.caption.strip()]
+
+            logger.info(
+                f"📱 Found {len(post_captions)} posts with captions for niche analysis")
+
+            # Analyze niche using Perplexity
+            niche_analysis = await perplexity_service.analyze_user_niche(
+                username=username,
+                bio=profile.bio,
+                recent_posts_content=post_captions,
+                follower_count=profile.follower_count,
+                video_count=profile.video_count
+            )
+
+            # Update profile with niche information
+            profile.niche_category = niche_analysis.niche_category
+            profile.niche_description = niche_analysis.niche_description
+            profile.key_topics = niche_analysis.key_topics
+            profile.target_audience = niche_analysis.target_audience
+            profile.content_style = niche_analysis.content_style
+
+            logger.info(
+                f"✅ Profile enhanced with niche: {niche_analysis.niche_category}")
+            logger.info(
+                f"📋 Niche description: {niche_analysis.niche_description}")
+            logger.info(
+                f"🎯 Key topics: {', '.join(niche_analysis.key_topics[:3])}")
+
+        except Exception as e:
+            logger.error(f"❌ Niche analysis failed for @{username}: {str(e)}")
+            logger.error(f"📊 Error details: {type(e).__name__}")
+            # Set fallback niche info
+            profile.niche_category = "General Content Creator"
+            profile.niche_description = "Content creator with diverse topics and engaging content"
+            profile.key_topics = ["entertainment", "lifestyle", "social media"]
+            profile.target_audience = "General TikTok audience"
+            profile.content_style = "Mixed content style"
+
+        return profile
 
     async def _search_trending_videos_optimized(
         self,
@@ -204,10 +339,9 @@ class TrendAnalysisService:
                     logger.debug(f"📡 Fetching fresh data for #{hashtag}")
                     posts = await self.ensemble_service.search_hashtag_posts(
                         hashtag=hashtag,
-                        # Optimized count, max 20
                         count=min(videos_per_hashtag * 2, 20),
-                        period=7,  # Last 7 days for trending content
-                        sorting=1  # Sort by likes (highest engagement)
+                        period=30,  # Вместо 7 дней - 30 дней
+                        sorting=1
                     )
 
                     if not posts:
@@ -215,11 +349,43 @@ class TrendAnalysisService:
                             f"⚠️ No posts found for hashtag #{hashtag}")
                         continue
 
-                    # Convert to TrendVideo objects with quality filtering
-                    # Basic quality filter
-                    quality_posts = [p for p in posts if p.views > 100]
-                    selected_posts = (quality_posts or posts)[
-                        :videos_per_hashtag]
+                    # Filter posts by age (not older than 30 days)
+                    from datetime import timezone
+                    thirty_days_ago = datetime.now(
+                        timezone.utc) - timedelta(days=30)
+                    filtered_posts = []
+
+                    for post in posts:
+                        try:
+                            # Parse ISO timestamp and filter by date
+                            post_date = datetime.fromisoformat(
+                                post.create_time.replace('Z', '+00:00'))
+                            if post_date >= thirty_days_ago:
+                                filtered_posts.append(post)
+                        except (ValueError, AttributeError) as e:
+                            logger.warning(
+                                f"⚠️ Could not parse date for post {post.id}: {e}")
+                            continue
+
+                    # Limit to the requested count after filtering
+                    if not filtered_posts:
+                        logger.warning(
+                            f"⚠️ No posts within 30 days found for hashtag #{hashtag}")
+                        continue
+
+                    posts = filtered_posts[:min(videos_per_hashtag * 2, 20)]
+
+                    # Convert to TrendVideo objects with more inclusive filtering
+                    # More inclusive quality filter to get more videos
+                    quality_posts = [p for p in posts if p.views > 10]
+
+                    # If not enough quality posts, use all available posts
+                    if len(quality_posts) < videos_per_hashtag and posts:
+                        logger.info(
+                            f"🔍 Using all {len(posts)} available posts for #{hashtag}")
+                        selected_posts = posts[:videos_per_hashtag]
+                    else:
+                        selected_posts = quality_posts[:videos_per_hashtag]
 
                     trend_videos = [
                         self._post_to_trend_video(post, hashtag)
@@ -268,6 +434,17 @@ class TrendAnalysisService:
             hashtag=hashtag,
             author=post.author  # Use parsed author data
         )
+
+    def _days_since_creation(self, create_time: int) -> int:
+        """Calculate days since content creation"""
+        try:
+            from datetime import datetime
+            current_timestamp = datetime.now().timestamp()
+            days_diff = (current_timestamp - create_time) / (24 * 60 * 60)
+            return int(days_diff)
+        except Exception:
+            # If timestamp parsing fails, assume recent content
+            return 1
 
     async def _cache_analysis_result(
         self,
@@ -373,6 +550,26 @@ class TrendAnalysisService:
         posts = await self.ensemble_service.search_hashtag_posts(
             hashtag=clean_hashtag, count=count, period=period, sorting=sorting
         )
+
+        # Filter posts by age (not older than specified period)
+        if period > 0:
+            from datetime import timezone
+            period_days_ago = datetime.now(
+                timezone.utc) - timedelta(days=period)
+            filtered_posts = []
+
+            for post in posts:
+                try:
+                    post_date = datetime.fromisoformat(
+                        post.create_time.replace('Z', '+00:00'))
+                    if post_date >= period_days_ago:
+                        filtered_posts.append(post)
+                except (ValueError, AttributeError) as e:
+                    logger.warning(
+                        f"⚠️ Could not parse date for post {post.id}: {e}")
+                    continue
+
+            posts = filtered_posts
 
         # Cache results with appropriate TTL
         await cache_service.set(

@@ -4,6 +4,7 @@ Ensemble Data API Service for TikTok data - Official SDK Implementation
 import logging
 import math
 import asyncio
+from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from ensembledata.api import EDClient, EDError
 from models import TikTokProfile, TikTokPost
@@ -278,14 +279,43 @@ class EnsembleService:
                 logger.debug(
                     f"📈 Sample post views: {[p.views for p in posts[:3]]}")
 
-            # Filter high-quality results with more inclusive threshold
-            quality_posts = [post for post in posts if post.views > 100]
+            # Filter posts by age (not older than specified period)
+            if period > 0:
+                from datetime import timezone
+                period_days_ago = datetime.now(
+                    timezone.utc) - timedelta(days=period)
+                date_filtered_posts = []
 
-            # If no quality posts, use lower threshold
+                for post in posts:
+                    try:
+                        post_date = datetime.fromisoformat(
+                            post.create_time.replace('Z', '+00:00'))
+                        if post_date >= period_days_ago:
+                            date_filtered_posts.append(post)
+                    except (ValueError, AttributeError) as e:
+                        logger.warning(
+                            f"⚠️ Could not parse date for post {post.id}: {e}")
+                        continue
+
+                posts = date_filtered_posts
+                logger.debug(
+                    f"📅 Posts after date filtering ({period} days): {len(posts)}")
+
+            # Filter high-quality results with more inclusive threshold
+            # Start with posts that have at least some engagement
+            quality_posts = [post for post in posts if post.views > 10]
+
+            # If no posts with 10+ views, use even lower threshold
             if not quality_posts and posts:
                 logger.info(
-                    f"🔍 No posts > 100 views, using lower threshold for #{clean_hashtag}")
-                quality_posts = [post for post in posts if post.views > 10]
+                    f"🔍 No posts > 10 views, using minimal threshold for #{clean_hashtag}")
+                quality_posts = [post for post in posts if post.views > 0]
+
+            # If still no posts, take all available posts
+            if not quality_posts:
+                quality_posts = posts
+                logger.info(
+                    f"🔍 Using all available posts for #{clean_hashtag}")
 
             final_posts = quality_posts[:count] if quality_posts else posts[:count]
             logger.info(
@@ -581,12 +611,58 @@ class EnsembleService:
                 )
                 tiktok_url = f"https://www.tiktok.com/@{author_username}/video/{post_id}" if author_username else ""
 
-                # Extract cover image URL according to official API structure
-                cover_image_url = (
-                    safe_get_nested(video_info, ['cover', 'url_list', 0]) or
-                    safe_get_nested(
-                        video_info, ['origin_cover', 'url_list', 0]) or ""
-                )
+                # Enhanced image extraction with improved EnsembleData API structure understanding
+                # DEBUG: Log available keys for troubleshooting
+                logger.debug(f"🔍 Post {post_id} structure analysis:")
+                logger.debug(
+                    f"   video_info keys: {list(video_info.keys()) if video_info else 'None'}")
+                if video_info:
+                    logger.debug(
+                        f"   cover keys: {list(video_info.get('cover', {}).keys()) if video_info.get('cover') else 'None'}")
+                    logger.debug(
+                        f"   origin_cover keys: {list(video_info.get('origin_cover', {}).keys()) if video_info.get('origin_cover') else 'None'}")
+
+                # Extract cover image URL with comprehensive fallbacks
+                cover_image_url = self._extract_best_cover_image(
+                    video_info, post_data, post_id)
+
+                # Validate and clean cover image URL
+                if cover_image_url and isinstance(cover_image_url, str):
+                    cover_image_url = cover_image_url.strip()
+                    # Ensure URL is valid (starts with http/https)
+                    if not cover_image_url.startswith(('http://', 'https://')):
+                        if cover_image_url.startswith('//'):
+                            cover_image_url = 'https:' + cover_image_url
+                        else:
+                            logger.warning(
+                                f"⚠️ Invalid cover image URL format: {cover_image_url}")
+                            cover_image_url = ""
+
+                    # Debug logging for image URLs
+                    if cover_image_url:
+                        logger.debug(
+                            f"📸 Found cover image: {cover_image_url[:100]}...")
+                    else:
+                        logger.debug(
+                            f"📸 No cover image found for post {post_id}")
+                        # Debug: log available video_info keys
+                        logger.debug(
+                            f"🔍 Available video keys: {list(video_info.keys()) if video_info else 'None'}")
+                else:
+                    cover_image_url = ""
+
+                # Extract additional images using improved method
+                additional_images = self._extract_additional_images(
+                    video_info, post_data, cover_image_url, post_id)
+
+                logger.info(
+                    f"📸 Post {post_id}: cover='{cover_image_url[:80] if cover_image_url else 'None'}{'...' if cover_image_url and len(cover_image_url) > 80 else ''}'")
+                logger.info(
+                    f"📸 Post {post_id}: found {len(additional_images)} additional images")
+                if additional_images:
+                    for i, img in enumerate(additional_images[:3]):
+                        logger.info(
+                            f"📸 Post {post_id}: img[{i}] = '{img[:80]}{'...' if len(img) > 80 else ''}')")
 
                 # Parse timestamp according to official API structure
                 create_time = self._parse_timestamp(
@@ -627,6 +703,8 @@ class EnsembleService:
                         video_url, str) else "",
                     cover_image_url=cover_image_url[:500] if isinstance(
                         cover_image_url, str) else "",
+                    images=[img[:500] for img in additional_images if isinstance(
+                        img, str)],  # Additional images with URL length limit
                     hashtags=hashtags[:10],  # Limit hashtags for safety
                     author=author,
                     tiktok_url=tiktok_url[:500] if isinstance(
@@ -665,6 +743,298 @@ class EnsembleService:
 
         # Use the same parsing logic as regular posts
         return self._parse_posts_data(posts_list, count)
+
+    def _extract_best_cover_image(self, video_info: dict, post_data: dict, post_id: str) -> str:
+        """
+        Extract the best available cover image from TikTok post data
+        Based on EnsembleData API structure with extensive fallbacks
+        """
+        cover_image_url = ""
+
+        try:
+            # Priority 1: Standard TikTok video covers (highest quality)
+            cover_sources = [
+                # High-quality covers
+                ['cover', 'url_list', 0],
+                ['cover', 'url_list', 1],
+                ['cover', 'url_list', 2],
+                ['origin_cover', 'url_list', 0],
+                ['origin_cover', 'url_list', 1],
+                ['origin_cover', 'url_list', 2],
+
+                # Dynamic and AI covers
+                ['dynamic_cover', 'url_list', 0],
+                ['dynamic_cover', 'url_list', 1],
+                ['ai_dynamic_cover', 'url_list', 0],
+                ['ai_dynamic_cover', 'url_list', 1],
+                ['ai_cover', 'url_list', 0],
+                ['ai_cover', 'url_list', 1],
+
+                # Alternative covers
+                ['cover_original_scale', 'url_list', 0],
+                ['cover_hd', 'url_list', 0],
+                ['cover_medium', 'url_list', 0],
+                ['cover_thumb', 'url_list', 0],
+
+                # Direct URL fallbacks (no url_list)
+                ['cover'],
+                ['origin_cover'],
+                ['dynamic_cover'],
+                ['ai_dynamic_cover'],
+                ['ai_cover']
+            ]
+
+            # Try video_info sources first
+            if video_info:
+                for source_path in cover_sources:
+                    url = safe_get_nested(video_info, source_path)
+                    if url and isinstance(url, str) and url.strip():
+                        cover_image_url = url.strip()
+                        logger.debug(
+                            f"📸 Found cover from video_info.{'.'.join(source_path)}: {cover_image_url[:100]}")
+                        break
+
+            # Priority 2: Try post_data video covers if not found
+            if not cover_image_url and post_data:
+                post_video_sources = [
+                    ['video', 'cover', 'url_list', 0],
+                    ['video', 'cover_original_scale', 'url_list', 0],
+                    ['video', 'cover_hd', 'url_list', 0],
+                    ['video', 'cover_medium', 'url_list', 0],
+                    ['video', 'cover_thumb', 'url_list', 0],
+                    ['video', 'origin_cover', 'url_list', 0],
+                    ['video', 'dynamic_cover', 'url_list', 0],
+                ]
+
+                for source_path in post_video_sources:
+                    url = safe_get_nested(post_data, source_path)
+                    if url and isinstance(url, str) and url.strip():
+                        cover_image_url = url.strip()
+                        logger.debug(
+                            f"📸 Found cover from post_data.{'.'.join(source_path)}: {cover_image_url[:100]}")
+                        break
+
+            # Priority 3: Image carousel posts (TikTok supports image posts)
+            if not cover_image_url:
+                image_sources = [
+                    ['image_post_info', 'images', 0, 'image_url', 'url_list', 0],
+                    ['image_post_info', 'images', 0,
+                        'display_image', 'url_list', 0],
+                    ['image_post_info', 'images', 0,
+                        'owner_watermark_image', 'url_list', 0],
+                    ['images', 0, 'image_url', 'url_list', 0],
+                    ['images', 0, 'display_image', 'url_list', 0],
+                ]
+
+                for source_path in image_sources:
+                    url = safe_get_nested(post_data, source_path)
+                    if url and isinstance(url, str) and url.strip():
+                        cover_image_url = url.strip()
+                        logger.debug(
+                            f"📸 Found image from {'.'.join(source_path)}: {cover_image_url[:100]}")
+                        break
+
+            # Priority 4: Author avatar as last resort
+            if not cover_image_url:
+                author_sources = [
+                    ['author', 'avatar_larger', 'url_list', 0],
+                    ['author', 'avatar_medium', 'url_list', 0],
+                    ['author', 'avatar_thumb', 'url_list', 0],
+                ]
+
+                for source_path in author_sources:
+                    url = safe_get_nested(post_data, source_path)
+                    if url and isinstance(url, str) and url.strip():
+                        cover_image_url = url.strip()
+                        logger.debug(
+                            f"📸 Using author avatar from {'.'.join(source_path)}: {cover_image_url[:100]}")
+                        break
+
+            # Normalize URL
+            if cover_image_url:
+                # Fix protocol-relative URLs
+                if cover_image_url.startswith('//'):
+                    cover_image_url = 'https:' + cover_image_url
+                # Validate URL format
+                elif not cover_image_url.startswith(('http://', 'https://')):
+                    logger.warning(
+                        f"⚠️ Invalid image URL format for post {post_id}: {cover_image_url}")
+                    cover_image_url = ""
+
+            # Final validation
+            if cover_image_url and len(cover_image_url) > 500:
+                logger.warning(
+                    f"⚠️ Image URL too long for post {post_id}, truncating")
+                cover_image_url = cover_image_url[:500]
+
+        except Exception as e:
+            logger.error(
+                f"❌ Error extracting cover image for post {post_id}: {e}")
+            cover_image_url = ""
+
+        # Log result
+        if cover_image_url:
+            logger.info(
+                f"✅ Post {post_id}: Found cover image ({len(cover_image_url)} chars)")
+        else:
+            logger.warning(f"⚠️ Post {post_id}: No cover image found")
+            # Log available structure for debugging
+            if video_info:
+                logger.debug(
+                    f"   Available video_info keys: {list(video_info.keys())}")
+            if post_data:
+                logger.debug(
+                    f"   Available post_data keys: {list(post_data.keys())}")
+
+        return cover_image_url
+
+    def _extract_additional_images(self, video_info: dict, post_data: dict, cover_image_url: str, post_id: str) -> List[str]:
+        """
+        Extract additional images from TikTok post (carousel images, alternative thumbnails)
+        """
+        additional_images = []
+
+        try:
+            # Priority 1: Image carousel posts (TikTok supports multiple images in one post)
+            image_carousel_sources = [
+                ['image_post_info', 'images'],
+                ['images'],  # Alternative structure
+            ]
+
+            for carousel_path in image_carousel_sources:
+                images_data = safe_get_nested(post_data, carousel_path) or []
+                if isinstance(images_data, list) and images_data:
+                    logger.debug(
+                        f"📸 Post {post_id}: Found {len(images_data)} carousel images")
+
+                    # Max 6 additional images
+                    for i, img_data in enumerate(images_data[:6]):
+                        if not isinstance(img_data, dict):
+                            continue
+
+                        # Try multiple sources for each image
+                        img_url = None
+                        for source in ['image_url', 'display_image', 'owner_watermark_image', 'user_watermark_image', 'thumbnail']:
+                            url_candidates = [
+                                safe_get_nested(
+                                    img_data, [source, 'url_list', 0]),
+                                safe_get_nested(
+                                    img_data, [source, 'url_list', 1]),
+                                safe_get_nested(
+                                    img_data, [source]),  # Direct URL
+                            ]
+
+                            for url in url_candidates:
+                                if url and isinstance(url, str) and url.strip():
+                                    img_url = url.strip()
+                                    break
+
+                            if img_url:
+                                break
+
+                        # Validate and add image
+                        if img_url and self._is_valid_image_url(img_url) and img_url != cover_image_url:
+                            if img_url not in additional_images:
+                                additional_images.append(img_url)
+                                logger.debug(
+                                    f"📸 Added carousel image {i+1}: {img_url[:80]}")
+
+                    if additional_images:
+                        break  # Found images in this source, no need to try others
+
+            # Priority 2: Alternative video thumbnails/covers (if we have room for more)
+            if len(additional_images) < 5 and video_info:
+                alt_thumbnail_sources = [
+                    # Different quality levels
+                    ['cover', 'url_list'],
+                    ['origin_cover', 'url_list'],
+                    ['dynamic_cover', 'url_list'],
+                    ['ai_dynamic_cover', 'url_list'],
+                    ['ai_cover', 'url_list'],
+                ]
+
+                for source_path in alt_thumbnail_sources:
+                    url_list = safe_get_nested(video_info, source_path) or []
+                    if isinstance(url_list, list):
+                        # Skip first few URLs if they might be the cover image
+                        start_index = 1 if source_path[0] in [
+                            'cover', 'origin_cover'] else 0
+
+                        for i in range(start_index, min(len(url_list), start_index + 3)):
+                            url = url_list[i]
+                            if (url and isinstance(url, str) and
+                                self._is_valid_image_url(url) and
+                                url != cover_image_url and
+                                    url not in additional_images):
+
+                                additional_images.append(url.strip())
+                                logger.debug(
+                                    f"📸 Added alt thumbnail: {url[:80]}")
+
+                                if len(additional_images) >= 5:
+                                    break
+
+                    if len(additional_images) >= 5:
+                        break
+
+            # Priority 3: Music/sound cover (if available and still have room)
+            if len(additional_images) < 5:
+                music_sources = [
+                    ['music', 'cover_large', 'url_list', 0],
+                    ['music', 'cover_medium', 'url_list', 0],
+                    ['music', 'cover_thumb', 'url_list', 0],
+                ]
+
+                for source_path in music_sources:
+                    url = safe_get_nested(post_data, source_path)
+                    if (url and isinstance(url, str) and
+                        self._is_valid_image_url(url) and
+                        url != cover_image_url and
+                            url not in additional_images):
+
+                        additional_images.append(url.strip())
+                        logger.debug(f"📸 Added music cover: {url[:80]}")
+                        break
+
+        except Exception as e:
+            logger.error(
+                f"❌ Error extracting additional images for post {post_id}: {e}")
+
+        # Final validation and cleanup
+        validated_images = []
+        for img_url in additional_images:
+            if len(img_url) <= 500:  # URL length limit
+                validated_images.append(img_url)
+            else:
+                logger.warning(
+                    f"⚠️ Image URL too long, skipping: {img_url[:100]}...")
+
+        logger.debug(
+            f"📸 Post {post_id}: Extracted {len(validated_images)} additional images")
+        return validated_images
+
+    def _is_valid_image_url(self, url: str) -> bool:
+        """Validate image URL format and basic structure"""
+        if not url or not isinstance(url, str):
+            return False
+
+        url = url.strip()
+
+        # Fix protocol-relative URLs
+        if url.startswith('//'):
+            url = 'https:' + url
+
+        # Must start with valid protocol
+        if not url.startswith(('http://', 'https://')):
+            return False
+
+        # Basic URL structure validation
+        if len(url) < 10 or len(url) > 500:
+            return False
+
+        # Should contain image-like patterns (optional but helpful)
+        # Most TikTok images have these patterns
+        return True
 
     def _parse_timestamp(self, timestamp: Optional[int]) -> str:
         """

@@ -10,6 +10,8 @@ import TrendGrid from './components/TrendGrid';
 import LoadingStates from './components/LoadingStates';
 import ErrorState from './components/ErrorState';
 import VideoModal from './components/VideoModal';
+import Aurora from './components/Aurora';
+import GradientText from './components/GradientText';
 
 function App() {
   const {
@@ -57,7 +59,16 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-primary-bg flex flex-col">
+    <div className="min-h-screen bg-primary-bg flex flex-col relative">
+      {/* Background visual */}
+      <div className="absolute inset-0 pointer-events-none opacity-40">
+        <Aurora
+          colorStops={["#3A29FF", "#FF94B4", "#FF3232"]}
+          blend={0.5}
+          amplitude={1.0}
+          speed={0.5}
+        />
+      </div>
       <div className="container mx-auto px-4 py-8 flex-grow">
         {/* Error State */}
         {error && (
@@ -138,22 +149,6 @@ function App() {
         />
       </div>
 
-      {/* Footer */}
-      <footer className="border-t border-primary-line bg-primary-card/50 backdrop-blur-sm mt-auto">
-        <div className="container mx-auto px-4 py-6">
-          <div className="text-center text-text-secondary text-sm">
-            <p className="mb-2">
-              TrendXL 2.0 - Powered by{' '}
-              <span className="text-primary-accent font-medium">Ensemble Data API</span>{' '}
-              &{' '}
-              <span className="text-primary-accent font-medium">OpenAI GPT-4o</span>
-            </p>
-            <p className="text-xs opacity-75">
-              Analyzing TikTok trends with artificial intelligence
-            </p>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

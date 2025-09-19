@@ -16,6 +16,12 @@ class TikTokProfile(BaseModel):
     video_count: int = 0
     avatar_url: str = ""
     is_verified: bool = False
+    # Niche analysis fields
+    niche_category: str = ""
+    niche_description: str = ""
+    key_topics: List[str] = []
+    target_audience: str = ""
+    content_style: str = ""
 
 
 class TikTokPost(BaseModel):
@@ -30,6 +36,9 @@ class TikTokPost(BaseModel):
     create_time: str
     video_url: str = ""
     cover_image_url: str = ""
+    # Support for multiple images (for image posts or additional video thumbnails)
+    images: List[str] = Field(default_factory=list,
+                              description="Additional images from the post")
     hashtags: List[str] = []
     author: "TikTokAuthor" = Field(default_factory=lambda: TikTokAuthor())
     tiktok_url: str = ""  # Direct TikTok link
@@ -53,14 +62,34 @@ class TrendVideo(BaseModel):
     create_time: str
     video_url: str = ""
     cover_image_url: str = ""
+    # Support for multiple images (for image posts or additional video thumbnails)
+    images: List[str] = Field(default_factory=list,
+                              description="Additional images from the post")
     hashtag: str
     author: TikTokAuthor = Field(default_factory=TikTokAuthor)
+    # Content relevance analysis
+    content_relevance: Optional["ContentRelevanceAnalysis"] = None
+    relevance_score: float = Field(
+        default=0.0, ge=0.0, le=1.0, description="Content relevance score for sorting")
 
 
 class GPTAnalysisResponse(BaseModel):
     """Response from GPT analysis"""
     top_hashtags: List[str]
     analysis_summary: str = ""
+
+
+class ContentRelevanceAnalysis(BaseModel):
+    """Content relevance analysis using GPT-4 Vision"""
+    image_description: str
+    content_category: str
+    relevance_score: float = Field(
+        ge=0.0, le=1.0, description="Relevance score from 0.0 to 1.0")
+    relevance_explanation: str
+    confidence_level: float = Field(
+        ge=0.0, le=1.0, description="Confidence in analysis")
+    visual_elements: List[str] = Field(
+        default_factory=list, description="Key visual elements identified")
 
 
 class TrendAnalysisRequest(BaseModel):
