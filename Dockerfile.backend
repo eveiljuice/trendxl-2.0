@@ -1,0 +1,61 @@
+# TrendXL 2.0 Backend Service - Railway Deployment
+FROM python:3.10-slim-bullseye
+
+# Set Python environment variables for optimal performance
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONPATH=/app
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies required for Python packages
+RUN apt-get update && apt-get install -y \
+    --no-install-recommends \
+    build-essential \
+    gcc \
+    g++ \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Verify Python installation and show versions
+RUN echo "=== Python Environment ===" \
+    && python --version \
+    && python3 --version \
+    && pip --version \
+    && which python \
+    && which python3
+
+# Copy requirements from backend directory
+COPY backend/requirements.txt .
+
+# Install Python dependencies with verbose output
+RUN echo "=== Installing Python Dependencies ===" \
+    && pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt \
+    && pip list
+
+# Copy all backend application code
+COPY backend/ .
+
+# Verify main application file exists
+RUN ls -la run_server.py || echo "WARNING: run_server.py not found!"
+
+# Create non-root user for security
+RUN groupadd -r trendxl && useradd -r -g trendxl -u 1000 trendxl \
+    && chown -R trendxl:trendxl /app
+USER trendxl
+
+# Expose port (Railway will set $PORT environment variable)
+EXPOSE 8000
+
+# Health check endpoint
+HEALTHCHECK --interval=30s --timeout=30s --start-period=15s --retries=3 \
+    CMD curl -f http://127.0.0.1:${PORT:-8000}/health || exit 1
+
+# Start command with explicit python3
+CMD ["python3", "run_server.py"]
