@@ -148,24 +148,24 @@ class Settings(BaseSettings):
     @field_validator('perplexity_api_key')
     @classmethod
     def validate_perplexity_key(cls, v):
-        """Validate Perplexity API key"""
-        if not v or len(v.strip()) < 20:
-            raise ValueError(
-                "❌ PERPLEXITY_API_KEY is missing or too short. "
-                "Get your API key from: https://www.perplexity.ai/settings/api"
+        """Validate Perplexity API key - now optional for startup"""
+        if not v or v.strip() in ["demo-perplexity-key", "your-perplexity-api-key-here", ""]:
+            logger.warning(
+                "⚠️ PERPLEXITY_API_KEY is missing or using demo value. "
+                "Get your API key from: https://www.perplexity.ai/settings/api "
+                "Perplexity search features will not work without a valid key."
             )
-        if v.strip() == "your-perplexity-api-key-here":
-            raise ValueError(
-                "❌ PERPLEXITY_API_KEY is using placeholder value. "
-                "Replace it with your real API key from: https://www.perplexity.ai/settings/api"
-            )
-        if not v.strip().startswith('pplx-'):
-            raise ValueError(
-                "❌ PERPLEXITY_API_KEY format is invalid. "
-                "Perplexity API keys should start with 'pplx-'"
-            )
-        logger.info("✅ Perplexity API key validated")
-        return v.strip()
+            return v  # Allow demo key for startup
+
+        token = v.strip()
+        if len(token) < 20:
+            logger.warning("⚠️ Perplexity key appears too short")
+        elif not token.startswith('pplx-'):
+            logger.warning("⚠️ Perplexity API key format may be invalid (should start with 'pplx-')")
+        else:
+            logger.info("✅ Perplexity API key validated")
+            
+        return token
 
 
 # Global settings instance
