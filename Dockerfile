@@ -88,8 +88,9 @@ COPY nginx.fullstack.conf /etc/nginx/nginx.conf
 # Copy supervisor configuration
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Copy startup script
+# Copy startup script and debug server
 COPY start-services.sh /start-services.sh
+COPY debug-server.py /app/debug-server.py
 RUN chmod +x /start-services.sh
 
 # Create non-root user for security
