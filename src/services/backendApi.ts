@@ -37,14 +37,56 @@ const createBackendClient = (customTimeout?: number) => {
   
   // Отладочный interceptor для логирования запросов
   client.interceptors.request.use(request => {
+    const fullURL = `${request.baseURL || ''}${request.url || ''}`;
     console.log('🚀 API Request:', {
       method: request.method?.toUpperCase(),
       url: request.url,
       baseURL: request.baseURL,
-      fullURL: `${request.baseURL || ''}${request.url || ''}`
+      fullURL: fullURL,
+      timestamp: new Date().toISOString()
     });
     return request;
   });
+  
+  // Отладочный interceptor для логирования ответов
+  client.interceptors.response.use(
+    response => {
+      console.log('✅ API Success:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.config.url,
+        data: typeof response.data === 'object' ? Object.keys(response.data) : response.data,
+        timestamp: new Date().toISOString()
+      });
+      return response;
+    },
+    error => {
+      const errorInfo = {
+        message: error.message,
+        url: error.config?.url,
+        method: error.config?.method,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        responseData: error.response?.data,
+        timestamp: new Date().toISOString()
+      };
+      
+      console.error('❌ API Error:', errorInfo);
+      
+      // Специальная обработка для разных типов ошибок
+      if (error.code === 'ECONNREFUSED') {
+        console.error('🔌 Connection refused - backend not responding');
+      } else if (error.response?.status === 502) {
+        console.error('🌐 Bad Gateway - nginx cannot reach backend');
+      } else if (error.response?.status === 503) {
+        console.error('🚫 Service Unavailable - backend service down');
+      } else if (error.response?.status === 0) {
+        console.error('🌐 Network error - no response from server');
+      }
+      
+      return Promise.reject(error);
+    }
+  );
   
   return client;
 };

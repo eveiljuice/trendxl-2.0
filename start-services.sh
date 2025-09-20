@@ -97,6 +97,41 @@ head -20 /etc/supervisor/conf.d/supervisord.conf
 
 echo "🎯 Starting services with Supervisor..."
 
+# Test if backend port is available
+echo "🔌 Testing if port 8000 is available..."
+if netstat -tuln | grep :8000; then
+    echo "⚠️ Port 8000 is already in use!"
+    netstat -tuln | grep :8000
+else
+    echo "✅ Port 8000 is available"
+fi
+
 # Start supervisor in debug mode initially
 echo "   Starting supervisor daemon..."
+echo "   Supervisor will start:"
+echo "   - nginx (port 80/PORT)"
+echo "   - backend (port 8000)"
+
+# Add a function to monitor services
+(
+    sleep 10  # Wait for services to start
+    echo "📊 Service Status Check (after 10 seconds):"
+    
+    # Check if processes are running
+    echo "   Nginx processes:"
+    ps aux | grep nginx | grep -v grep || echo "   ❌ No nginx processes found"
+    
+    echo "   Python processes:"
+    ps aux | grep python | grep -v grep || echo "   ❌ No python processes found"
+    
+    echo "   Port usage:"
+    netstat -tuln | grep -E ":80|:8000" || echo "   ❌ No processes listening on ports 80/8000"
+    
+    # Test internal connectivity
+    echo "   Testing internal connectivity:"
+    echo "   - Backend health: $(curl -s -w '%{http_code}' -o /dev/null http://127.0.0.1:8000/health || echo 'failed')"
+    echo "   - Nginx status: $(curl -s -w '%{http_code}' -o /dev/null http://127.0.0.1:${PORT:-80}/nginx-status || echo 'failed')"
+    
+) &
+
 exec /usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf
