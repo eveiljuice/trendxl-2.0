@@ -40,13 +40,15 @@ class Settings(BaseSettings):
         default=[
             "http://localhost:3000",
             "http://localhost:5173",
+            # Разрешаем тот же домен (для fullstack container)
+            "*"  # В unified container фронтенд на том же домене
         ],
         env="CORS_ORIGINS"
     )
-    # Optional regex to allow dynamic subdomains (e.g., Railway)
-    # Example: CORS_ORIGIN_REGEX="https?://.*\\.railway\\.app$|https?://.*\\.up\\.railway\\.app$"
+    # Regex для Railway доменов и localhost
     cors_origin_regex: Optional[str] = Field(
-        default=None, env="CORS_ORIGIN_REGEX")
+        default=r"https?://.*\.up\.railway\.app$|https?://.*\.railway\.app$|http://localhost:\d+$",
+        env="CORS_ORIGIN_REGEX")
 
     # Rate Limiting
     max_requests_per_minute: int = Field(

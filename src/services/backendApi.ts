@@ -5,7 +5,10 @@ import axios from 'axios';
 import { TikTokProfile, TikTokPost, TrendVideo } from '../types';
 
 // Backend API configuration
-const BACKEND_API_BASE_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:8000';
+// В production используем относительные пути (nginx прокси)
+// В development можем использовать прямое подключение к backend
+const BACKEND_API_BASE_URL = import.meta.env.VITE_BACKEND_API_URL || 
+  (import.meta.env.PROD ? '' : 'http://localhost:8000');
 
 // Create axios instance for backend API
 const createBackendClient = (customTimeout?: number) => {
