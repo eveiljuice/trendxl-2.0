@@ -10,8 +10,14 @@ WORKDIR /app/frontend
 COPY package*.json ./
 RUN npm ci --include=dev
 
-# Copy source code and build
+# Copy source code and environment files
 COPY . ./
+
+# Убедимся что используется правильный .env файл для production
+# Vite будет использовать этот файл для переменных окружения
+RUN ls -la .env* || echo "No .env files found"
+
+# Build the application with correct environment variables
 RUN npm run build
 
 # Stage 2: Prepare Python Backend

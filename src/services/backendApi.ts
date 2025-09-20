@@ -5,14 +5,28 @@ import axios from 'axios';
 import { TikTokProfile, TikTokPost, TrendVideo } from '../types';
 
 // Backend API configuration
-// В production используем относительные пути (nginx прокси)
+// В production ВСЕГДА используем относительные пути (nginx прокси)
 // В development можем использовать прямое подключение к backend
-const BACKEND_API_BASE_URL = import.meta.env.VITE_BACKEND_API_URL || 
-  (import.meta.env.PROD ? '' : 'http://localhost:8000');
+
+// Отладка: выводим информацию о переменных окружения
+console.log('🔍 Environment Debug:', {
+  VITE_BACKEND_API_URL: import.meta.env.VITE_BACKEND_API_URL,
+  PROD: import.meta.env.PROD,
+  DEV: import.meta.env.DEV,
+  MODE: import.meta.env.MODE
+});
+
+// Принудительно используем пустую строку в production для относительных путей
+const BACKEND_API_BASE_URL = import.meta.env.PROD 
+  ? '' // В production ВСЕГДА используем относительные пути
+  : (import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:8000');
+
+// Отладка: выводим финальный URL
+console.log('🌐 Final API Base URL:', BACKEND_API_BASE_URL);
 
 // Create axios instance for backend API
 const createBackendClient = (customTimeout?: number) => {
-  return axios.create({
+  const client = axios.create({
     baseURL: BACKEND_API_BASE_URL,
     headers: {
       'Accept': 'application/json',
@@ -20,6 +34,19 @@ const createBackendClient = (customTimeout?: number) => {
     },
     timeout: customTimeout || 180000, // 3 minutes default timeout
   });
+  
+  // Отладочный interceptor для логирования запросов
+  client.interceptors.request.use(request => {
+    console.log('🚀 API Request:', {
+      method: request.method?.toUpperCase(),
+      url: request.url,
+      baseURL: request.baseURL,
+      fullURL: `${request.baseURL || ''}${request.url || ''}`
+    });
+    return request;
+  });
+  
+  return client;
 };
 
 /**
