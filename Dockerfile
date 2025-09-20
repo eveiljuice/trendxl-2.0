@@ -49,6 +49,7 @@ FROM nginx:alpine AS production
 RUN apk add --no-cache \
     python3 \
     py3-pip \
+    py3-virtualenv \
     curl \
     supervisor \
     && ln -sf python3 /usr/bin/python
@@ -56,7 +57,9 @@ RUN apk add --no-cache \
 # Set Python environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH=/app/backend
+    PYTHONPATH=/app/backend \
+    VIRTUAL_ENV=/app/venv \
+    PATH="/app/venv/bin:$PATH"
 
 # Create directories
 RUN mkdir -p /app/backend /var/log/supervisor /etc/supervisor/conf.d
@@ -67,9 +70,11 @@ COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
 # Copy backend from backend-builder stage
 COPY --from=backend-builder /app/backend /app/backend
 
-# Install Python dependencies in production
+# Create virtual environment and install Python dependencies
 COPY backend/requirements.txt /app/backend/
-RUN pip install --no-cache-dir -r /app/backend/requirements.txt
+RUN python3 -m venv /app/venv \
+    && /app/venv/bin/pip install --no-cache-dir --upgrade pip \
+    && /app/venv/bin/pip install --no-cache-dir -r /app/backend/requirements.txt
 
 # Copy Nginx configuration
 COPY nginx.fullstack.conf /etc/nginx/nginx.conf
@@ -84,7 +89,7 @@ RUN chmod +x /start-services.sh
 # Create non-root user for security
 RUN addgroup -g 1000 trendxl && \
     adduser -D -s /bin/sh -u 1000 -G trendxl trendxl && \
-    chown -R trendxl:trendxl /app/backend
+    chown -R trendxl:trendxl /app/backend /app/venv
 
 # Expose port (Railway will set $PORT environment variable)
 EXPOSE 80

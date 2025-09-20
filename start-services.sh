@@ -36,9 +36,15 @@ nginx -t
 echo "🔍 Testing backend availability..."
 cd /app/backend
 
-# Test if backend dependencies are installed
-python -c "import fastapi, uvicorn; print('✅ Backend dependencies OK')" || {
-    echo "❌ Backend dependencies missing"
+# Activate virtual environment
+export PATH="/app/venv/bin:$PATH"
+export VIRTUAL_ENV="/app/venv"
+
+# Test if virtual environment and backend dependencies are installed
+/app/venv/bin/python -c "import fastapi, uvicorn; print('✅ Backend dependencies OK in venv')" || {
+    echo "❌ Backend dependencies missing in virtual environment"
+    echo "🔧 Available Python packages:"
+    /app/venv/bin/pip list || echo "Failed to list packages"
     exit 1
 }
 
