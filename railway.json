@@ -1,9 +1,9 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
-  "name": "TrendXL Backend (Default)",
+  "name": "TrendXL-Frontend",
   "build": {
-    "builder": "DOCKERFILE",
-    "dockerfilePath": "Dockerfile.backend"
+    "builder": "dockerfile",
+    "dockerfilePath": "Dockerfile"
   },
   "deploy": {
     "numReplicas": 1,
@@ -14,13 +14,8 @@
   "environments": {
     "production": {
       "variables": {
-        "PYTHONPATH": "/app",
-        "PYTHONUNBUFFERED": "1",
-        "HOST": "0.0.0.0",
         "PORT": "${{RAILWAY_PORT}}",
-        "DEBUG": "false",
-        "ENVIRONMENT": "production",
-        "LOG_LEVEL": "INFO"
+        "NODE_ENV": "production"
       }
     }
   },

@@ -1,4 +1,4 @@
-# TrendXL 2.0 Backend Service - Railway Deployment
+# TrendXL 2.0 Backend - Optimized Python FastAPI Service
 FROM python:3.10-slim-bullseye
 
 # Set Python environment variables for optimal performance
@@ -22,28 +22,13 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Verify Python installation and show versions
-RUN echo "=== Python Environment ===" \
-    && python --version \
-    && python3 --version \
-    && pip --version \
-    && which python \
-    && which python3
-
-# Copy requirements from backend directory
+# Copy requirements and install Python dependencies
 COPY backend/requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
 
-# Install Python dependencies with verbose output
-RUN echo "=== Installing Python Dependencies ===" \
-    && pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt \
-    && pip list
-
-# Copy all backend application code
+# Copy backend application code
 COPY backend/ .
-
-# Verify main application file exists
-RUN ls -la run_server.py || echo "WARNING: run_server.py not found!"
 
 # Create non-root user for security
 RUN groupadd -r trendxl && useradd -r -g trendxl -u 1000 trendxl \
@@ -57,5 +42,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=30s --start-period=15s --retries=3 \
     CMD curl -f http://127.0.0.1:${PORT:-8000}/health || exit 1
 
-# Start command with explicit python3
-CMD ["python3", "run_server.py"]
+# Start command
+CMD ["python", "run_server.py"]

@@ -1,0 +1,48 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "echo 'TrendXL 2.0 - Multi-service deployment'"
+
+# Frontend Service Configuration
+[[services]]
+name = "trendxl-frontend"
+source = "."
+dockerfile = "Dockerfile"
+
+[services.build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[services.deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+
+[services.environment]
+PORT = { from = "RAILWAY_PORT", fallback = "80" }
+NODE_ENV = "production"
+
+# Backend Service Configuration  
+[[services]]
+name = "trendxl-backend"
+source = "./backend"
+dockerfile = "../Dockerfile.backend"
+
+[services.build]
+builder = "dockerfile"
+dockerfilePath = "../Dockerfile.backend"
+
+[services.deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+
+[services.environment]
+PORT = { from = "RAILWAY_PORT", fallback = "8000" }
+PYTHONPATH = "/app"
+PYTHONUNBUFFERED = "1" 
+HOST = "0.0.0.0"
+DEBUG = "false"
+ENVIRONMENT = "production"
+LOG_LEVEL = "INFO"
