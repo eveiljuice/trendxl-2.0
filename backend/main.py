@@ -411,6 +411,36 @@ async def clear_cache(
         logger.error(f"Cache clear failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# Health check endpoint
+
+
+@app.get("/health", response_model=HealthCheckResponse)
+async def health_check():
+    """Health check endpoint for Railway and monitoring"""
+    try:
+        # Test basic services
+        cache_status = "healthy"
+        try:
+            await cache_service.get_stats()
+        except:
+            cache_status = "degraded"
+
+        return HealthCheckResponse(
+            status="healthy",
+            timestamp=get_current_timestamp(),
+            services={
+                "cache": cache_status,
+                "api": "healthy"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return HealthCheckResponse(
+            status="unhealthy",
+            timestamp=get_current_timestamp(),
+            services={"error": str(e)}
+        )
+
 # Root endpoint
 
 
