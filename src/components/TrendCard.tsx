@@ -180,7 +180,7 @@ const TrendCard: React.FC<TrendCardProps> = ({ trend, onClick }) => {
     >
       {/* Video Thumbnail */}
       <div className="relative mb-4 overflow-hidden rounded-card">
-        <div className="aspect-[9/16] max-h-64 bg-primary-line relative">
+        <div className="aspect-[9/16] max-h-64 bg-secondary relative">
           {currentImageSrc && !imageError ? (
             <>
               {/* Loading skeleton */}
@@ -231,6 +231,8 @@ const TrendCard: React.FC<TrendCardProps> = ({ trend, onClick }) => {
                   }
                 }}
                 crossOrigin="anonymous"
+                loading="lazy"
+                referrerPolicy="no-referrer"
               />
             </>
           ) : (

@@ -191,21 +191,58 @@ class TrendAnalysisService:
             )
 
             # Take top 10 most relevant trends
-            final_trends = relevance_sorted_trends[:10]
+            niche_trends = relevance_sorted_trends[:10]
+
+            # Step 6: Get 10 popular videos to supplement niche-based trends
+            logger.info(
+                "🔥 Step 6: Getting popular videos for broader appeal...")
+            popular_videos = await self.ensemble_service.search_popular_videos(
+                count=10,
+                period=7  # Last 7 days
+            )
+
+            # Convert popular videos to TrendVideo format
+            popular_trends = []
+            for post in popular_videos:
+                try:
+                    trend = await self._convert_post_to_trend(post)
+                    if trend:
+                        popular_trends.append(trend)
+                except Exception as e:
+                    logger.debug(
+                        f"⚠️ Failed to convert popular video to trend: {e}")
+                    continue
+
+            # Combine niche trends with popular videos (remove duplicates)
+            combined_trends = []
+            seen_ids = set()
+
+            # Add niche-based trends first
+            for trend in niche_trends:
+                if trend.id not in seen_ids:
+                    combined_trends.append(trend)
+                    seen_ids.add(trend.id)
+
+            # Add popular trends that are not already included
+            for trend in popular_trends:
+                # Max 20 total
+                if trend.id not in seen_ids and len(combined_trends) < 20:
+                    combined_trends.append(trend)
+                    seen_ids.add(trend.id)
 
             logger.info(
-                f"✅ Analysis completed! Found {len(final_trends)} trending videos with relevance scores")
+                f"✅ Analysis completed! Found {len(niche_trends)} niche trends + {len(popular_trends)} popular videos = {len(combined_trends)} total")
 
             # Cache the complete analysis result
             await self._cache_analysis_result(
-                username, profile, posts, hashtags, final_trends, analysis.analysis_summary
+                username, profile, posts, hashtags, combined_trends, analysis.analysis_summary
             )
 
             return TrendAnalysisResponse(
                 profile=profile,
                 posts=posts,
                 hashtags=hashtags,
-                trends=final_trends,
+                trends=combined_trends,
                 analysis_summary=analysis.analysis_summary
             )
 
@@ -604,6 +641,242 @@ class TrendAnalysisService:
 
         # Return empty list as user search is not supported by official API
         return []
+
+    async def analyze_creative_center_hashtags(
+        self,
+        profile_url: str,
+        creative_center_hashtags: List[Dict[str, Any]],
+        videos_per_hashtag: int = 3
+    ) -> Dict[str, Any]:
+        """
+        Analyze Creative Center hashtags by searching trending videos for each hashtag
+
+        This method integrates Creative Center discovery with Ensemble Data:
+        1. Takes Creative Center hashtags as input
+        2. Searches trending videos for each hashtag via Ensemble
+        3. Analyzes and ranks results by relevance
+        4. Returns comprehensive analysis
+
+        Args:
+            profile_url: User profile URL for context
+            creative_center_hashtags: List of Creative Center hashtags with metrics
+            videos_per_hashtag: Number of videos to fetch per hashtag
+
+        Returns:
+            Dictionary with comprehensive analysis results
+        """
+        from utils import extract_tiktok_username
+
+        username = extract_tiktok_username(profile_url)
+        logger.info(
+            f"🔗 Analyzing {len(creative_center_hashtags)} Creative Center hashtags for @{username}")
+
+        try:
+            # Get user profile for context
+            profile = await self._get_cached_profile(username)
+
+            # Extract hashtag names for Ensemble search
+            hashtag_names = []
+            hashtag_metadata = {}
+
+            for hashtag_data in creative_center_hashtags:
+                name = hashtag_data.get('name', '').strip()
+                if name:
+                    hashtag_names.append(name)
+                    hashtag_metadata[name] = hashtag_data
+
+            if not hashtag_names:
+                raise Exception(
+                    "No valid hashtags found in Creative Center data")
+
+            logger.info(
+                f"🔍 Searching Ensemble Data for hashtags: {hashtag_names}")
+
+            # Search trending videos for each Creative Center hashtag
+            all_trend_videos = []
+            for hashtag in hashtag_names:
+                try:
+                    logger.info(f"📱 Searching hashtag: #{hashtag}")
+
+                    # Use Ensemble to find trending posts for this hashtag
+                    posts = await self.ensemble_service.search_hashtag_posts(
+                        hashtag=hashtag,
+                        count=videos_per_hashtag * 2,  # Get more for filtering
+                        period=30,  # 30 days for fresh content
+                        sorting=1   # Sort by likes
+                    )
+
+                    if posts:
+                        # Convert to TrendVideo objects with Creative Center metadata
+                        for post in posts[:videos_per_hashtag]:
+                            trend_video = TrendVideo(
+                                id=post.id,
+                                caption=post.caption,
+                                views=post.views,
+                                likes=post.likes,
+                                shares=post.shares,
+                                comments=post.comments,
+                                create_time=post.create_time,
+                                video_url=post.tiktok_url or post.video_url,
+                                cover_image_url=post.cover_image_url,
+                                images=post.images,
+                                hashtag=hashtag,
+                                author=post.author
+                            )
+
+                            # Add Creative Center metadata
+                            cc_data = hashtag_metadata.get(hashtag, {})
+                            trend_video.relevance_score = cc_data.get(
+                                'relevance_score', 0.0)
+
+                            all_trend_videos.append(trend_video)
+
+                        logger.info(
+                            f"✅ Found {len(posts[:videos_per_hashtag])} videos for #{hashtag}")
+                    else:
+                        logger.warning(f"⚠️ No videos found for #{hashtag}")
+
+                except Exception as e:
+                    logger.warning(
+                        f"⚠️ Failed to search hashtag #{hashtag}: {e}")
+                    continue
+
+                # Add delay between requests
+                if hashtag != hashtag_names[-1]:
+                    await asyncio.sleep(settings.ensemble_request_delay)
+
+            logger.info(
+                f"🎯 Total trending videos collected: {len(all_trend_videos)}")
+
+            if not all_trend_videos:
+                raise Exception(
+                    "No trending videos found for any Creative Center hashtags")
+
+            # Apply quality filtering and sorting (softened filters)
+            quality_videos = []
+            filtered_out_count = 0
+
+            for video in all_trend_videos:
+                # Calculate engagement rate
+                engagement_rate = (
+                    video.likes + video.comments + video.shares) / max(video.views, 1)
+
+                # Apply more lenient quality filters for better results
+                if engagement_rate >= 0.005 and video.views >= 1000 and video.likes >= 10:  # Softened
+                    quality_videos.append(video)
+                else:
+                    filtered_out_count += 1
+                    logger.debug(
+                        f"⚠️ Video filtered out: views={video.views}, likes={video.likes}, engagement={engagement_rate:.4f}")
+
+            logger.info(
+                f"📊 Quality filtering: {len(quality_videos)} videos passed, {filtered_out_count} filtered out")
+
+            # If no videos pass quality filter, use all videos with basic threshold
+            if not quality_videos:
+                logger.warning(
+                    "⚠️ No videos passed quality filter, using basic threshold")
+                for video in all_trend_videos:
+                    if video.views >= 100:  # Very basic threshold
+                        quality_videos.append(video)
+
+            # If still no videos, use all available
+            if not quality_videos:
+                logger.warning(
+                    "⚠️ Using all available videos without quality filter")
+                quality_videos = all_trend_videos
+
+            # Sort by combined score (engagement + Creative Center relevance)
+            def calculate_video_score(video):
+                engagement_score = (video.likes + video.comments *
+                                    15 + video.shares * 20) / max(video.views, 1) * 50000
+                relevance_bonus = getattr(
+                    video, 'relevance_score', 0.0) * 10000
+                return engagement_score + relevance_bonus
+
+            # Get top videos from Creative Center hashtags (aim for 10-15)
+            niche_videos = sorted(
+                quality_videos, key=calculate_video_score, reverse=True)[:15]
+
+            logger.info(
+                f"📋 After sorting: {len(niche_videos)} niche videos selected")
+
+            # Apply content relevance analysis if available
+            if hasattr(self, 'content_relevance_service') and niche_videos:
+                try:
+                    logger.info(
+                        f"🎨 Applying content relevance analysis to {len(niche_videos)} videos...")
+                    analyzed_videos = await content_relevance_service.analyze_trends_relevance(
+                        niche_videos,
+                        profile.niche_category,
+                        profile.niche_description,
+                        profile.key_topics
+                    )
+                    # Take top 10 after relevance analysis
+                    niche_videos = analyzed_videos[:10]
+                    logger.info(
+                        f"✅ Content relevance analysis completed: {len(niche_videos)} final videos")
+                except Exception as e:
+                    logger.warning(
+                        f"⚠️ Content relevance analysis failed: {e}")
+                    niche_videos = niche_videos[:10]  # Fallback to top 10
+                    logger.info(
+                        f"📋 Using fallback: {len(niche_videos)} videos after fallback")
+
+            # For Creative Center analysis, focus only on hashtag-based results
+            # No popular videos mixing - show pure Creative Center results
+            final_videos = niche_videos
+
+            # Generate analysis summary
+            analysis_summary = f"Found {len(final_videos)} high-quality videos from {len(hashtag_names)} Creative Center hashtags. Videos selected based on engagement metrics and Creative Center relevance scores."
+
+            logger.info(
+                f"✅ Creative Center analysis completed: {len(final_videos)} videos from Creative Center hashtags")
+
+            return {
+                "profile": profile,
+                "posts": [],  # Not fetching user posts in this flow
+                "hashtags": hashtag_names,
+                "trends": final_videos,
+                "analysis_summary": analysis_summary,
+                "creative_center_metadata": hashtag_metadata,
+                "total_cc_hashtags_analyzed": len(creative_center_hashtags)
+            }
+
+        except Exception as e:
+            logger.error(
+                f"❌ Creative Center hashtag analysis failed for @{username}: {e}")
+            raise Exception(f"Creative Center analysis failed: {str(e)}")
+
+    async def _convert_post_to_trend(self, post: TikTokPost) -> Optional[TrendVideo]:
+        """
+        Convert TikTokPost to TrendVideo format
+
+        Args:
+            post: TikTokPost object to convert
+
+        Returns:
+            TrendVideo object or None if conversion fails
+        """
+        try:
+            return TrendVideo(
+                id=post.id,
+                caption=post.caption or "",
+                views=post.views or 0,
+                likes=post.likes or 0,
+                shares=post.shares or 0,
+                comments=post.comments or 0,
+                create_time=post.create_time,
+                video_url=post.tiktok_url or post.video_url or "",
+                cover_image_url=post.cover_image_url or "",
+                images=post.images or [],
+                hashtag="popular",  # Mark as popular content
+                author=post.author,
+                relevance_score=0.5  # Default relevance score for popular content
+            )
+        except Exception as e:
+            logger.debug(f"⚠️ Failed to convert post {post.id} to trend: {e}")
+            return None
 
 
 # Global trend analysis service instance

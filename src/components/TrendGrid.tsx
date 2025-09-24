@@ -25,7 +25,7 @@ const TrendGrid: React.FC<TrendGridProps> = ({ trends, onTrendClick }) => {
               Trending videos
             </h2>
             <p className="text-text-secondary">
-              Found {trends.length} popular videos by selected hashtags
+              Found {trends.length} popular videos (niche-specific + trending content)
             </p>
           </div>
         </div>

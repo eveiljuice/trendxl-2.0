@@ -105,3 +105,46 @@ export interface LoadingSpinnerProps {
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }
+
+// Creative Center Hashtag Types
+export interface CreativeCenterHashtag {
+  name: string;
+  url: string;
+  volume?: number;
+  growth?: number;
+  score?: number;
+}
+
+export interface NicheHashtagRequest {
+  niche: string;
+  country: string;
+  language: string;
+  limit: number;
+}
+
+export interface NicheHashtagResponse {
+  niche: string;
+  country: string;
+  language: string;
+  category: string;
+  total_found: number;
+  hashtags: CreativeCenterHashtag[];
+}
+
+// Advanced Creative Center Analysis Types
+export interface CreativeCenterAnalysisRequest {
+  profile_url: string;
+  country: string;
+  language: string;
+  hashtag_limit: number;
+  videos_per_hashtag: number;
+  auto_detect_geo: boolean;
+}
+
+export interface CreativeCenterAnalysisResponse {
+  profile: TikTokProfile;
+  creative_center_hashtags: CreativeCenterHashtag[];
+  trends: TrendVideo[];
+  analysis_summary: string;
+  metadata: Record<string, any>;
+}

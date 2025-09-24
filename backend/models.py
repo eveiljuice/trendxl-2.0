@@ -197,3 +197,68 @@ class PostsResponse(BaseModel):
         None, description="Pagination cursor for next page")
     total_posts: Optional[int] = Field(
         None, description="Total number of posts (if available)")
+
+
+# Creative Center Hashtag Models
+class CreativeCenterHashtag(BaseModel):
+    """Creative Center hashtag model"""
+    name: str = Field(..., description="Hashtag without #")
+    url: str = Field(..., description="Direct Creative Center hashtag URL")
+    volume: Optional[int] = Field(
+        None, description="Search/usage volume if available")
+    growth: Optional[float] = Field(
+        None, description="Growth metric (0..1) or %")
+    score: Optional[float] = Field(
+        None, description="Overall score if provided by source")
+
+
+class NicheHashtagRequest(BaseModel):
+    """Request for niche-based hashtag discovery from Creative Center"""
+    niche: str = Field(..., description="User niche, e.g., 'Tech Reviews'")
+    country: str = Field(
+        default="US", description="Region code for Creative Center")
+    language: str = Field(
+        default="en", description="Language code for Creative Center")
+    limit: int = Field(default=10, ge=1, le=25,
+                       description="Number of hashtags to return")
+    auto_detect_geo: bool = Field(
+        default=False, description="Automatically detect user geography")
+    profile_data: Optional[Dict[str, Any]] = Field(
+        None, description="User profile data for geo detection")
+
+
+class NicheHashtagResponse(BaseModel):
+    """Response for niche-based hashtag discovery"""
+    niche: str
+    country: str
+    language: str
+    category: str = Field(description="Creative Center category used")
+    total_found: int = Field(
+        description="Total hashtags found before filtering")
+    hashtags: List[CreativeCenterHashtag] = Field(default_factory=list)
+
+
+# Advanced Creative Center Analysis Models
+class CreativeCenterAnalysisRequest(BaseModel):
+    """Request for complete Creative Center + Ensemble analysis"""
+    profile_url: str = Field(..., description="TikTok profile URL or username")
+    country: str = Field(
+        default="US", description="Region code for Creative Center")
+    language: str = Field(
+        default="en", description="Language code for Creative Center")
+    hashtag_limit: int = Field(
+        default=5, ge=1, le=10, description="Number of Creative Center hashtags to discover")
+    videos_per_hashtag: int = Field(
+        default=3, ge=1, le=5, description="Number of videos per hashtag to analyze")
+    auto_detect_geo: bool = Field(
+        default=True, description="Automatically detect user geography")
+
+
+class CreativeCenterAnalysisResponse(BaseModel):
+    """Complete Creative Center + Ensemble analysis response"""
+    profile: TikTokProfile
+    creative_center_hashtags: List[CreativeCenterHashtag] = Field(
+        default_factory=list)
+    trends: List[TrendVideo] = Field(default_factory=list)
+    analysis_summary: str = ""
+    metadata: Dict[str, Any] = Field(default_factory=dict)

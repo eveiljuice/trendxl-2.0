@@ -4,10 +4,12 @@ Uses Sonar model to analyze TikTok profiles and determine user niches
 """
 import logging
 import asyncio
-from typing import Dict, Any, Optional
+import json
+from typing import Dict, Any, Optional, List
 import httpx
 from pydantic import BaseModel
 from config import settings
+from .creative_center_mapping import creative_center_mapping
 
 logger = logging.getLogger(__name__)
 
@@ -327,6 +329,137 @@ Focus on being specific and actionable. The niche should be clear enough to reco
     async def close(self):
         """Close HTTP client"""
         await self.client.aclose()
+
+    async def discover_creative_center_hashtags(
+        self,
+        niche: str,
+        country: str = "US",
+        language: str = "en",
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        Use Perplexity Sonar (web-enabled) to find popular Creative Center hashtags
+        for a given niche and region, returning structured results.
+
+        Args:
+            niche: User content niche (e.g., "Tech Reviews", "Fashion")
+            country: Country code for regional trends
+            language: Language code for content language
+            limit: Maximum number of hashtags to return
+
+        Returns:
+            List of CreativeCenterHashtag data as dictionaries
+        """
+        logger.info(
+            f"🔍 Discovering Creative Center hashtags for niche: {niche}")
+
+        try:
+            # Creative Center URL pattern
+            base_url = f"https://ads.tiktok.com/business/creativecenter/inspiration/popular/hashtag/pc/{language}"
+            region_hint = f"Region: {country}, Language: {language}"
+
+            # Structured JSON output format
+            json_format = """{
+  "hashtags": [
+    {
+      "name": "hashtag-without-#",
+      "url": "https://ads.tiktok.com/business/creativecenter/...",
+      "volume": 123456,
+      "growth": 0.37,
+      "score": 82.5
+    }
+  ]
+}"""
+
+            prompt = f"""You are a research agent specializing in TikTok trends. Browse TikTok Creative Center to find the most popular and trending hashtags for the niche: "{niche}".
+
+{region_hint}
+Start your research at: {base_url}
+
+Task Requirements:
+- Find hashtags specifically relevant to "{niche}", not just generic trending tags
+- Prioritize hashtags with high engagement and growth potential
+- Include niche-specific hashtags, trending variations, and related topics
+- Avoid generic hashtags like #fyp, #viral unless they're dominant in this niche
+- Look for recent trending data (last 7-30 days preferred)
+
+For each hashtag, gather:
+- name: hashtag without the # symbol
+- url: direct Creative Center URL for this hashtag
+- volume: search/usage volume if available
+- growth: growth percentage or trend indicator
+- score: overall performance score if provided
+
+Return EXACTLY this JSON format with no additional text:
+{json_format}
+
+Limit to top {limit} most relevant hashtags sorted by relevance and performance."""
+
+            # Make API request to Perplexity
+            response_text = await self._make_api_request(prompt)
+
+            # Try to extract and parse JSON from the response
+            try:
+                # Look for JSON in the response
+                text = response_text.strip()
+
+                # Try to find JSON boundaries
+                start_idx = text.find('{')
+                end_idx = text.rfind('}')
+
+                if start_idx != -1 and end_idx != -1:
+                    json_text = text[start_idx:end_idx + 1]
+                    data = json.loads(json_text)
+
+                    # Extract hashtags array
+                    hashtags_data = data.get('hashtags', [])
+
+                    # Validate and clean the data
+                    results = []
+                    for item in hashtags_data[:limit]:
+                        try:
+                            name = str(item.get("name", "")
+                                       ).lstrip("#").strip()
+                            url = str(item.get("url", "")).strip()
+                            volume = item.get("volume", None)
+                            growth = item.get("growth", None)
+                            score = item.get("score", None)
+
+                            # Basic validation
+                            if name and url and "ads.tiktok.com" in url:
+                                hashtag_data = {
+                                    "name": name,
+                                    "url": url,
+                                    "volume": volume,
+                                    "growth": growth,
+                                    "score": score
+                                }
+                                results.append(hashtag_data)
+
+                        except Exception as e:
+                            logger.warning(
+                                f"⚠️ Failed to parse hashtag item: {e}")
+                            continue
+
+                    logger.info(
+                        f"✅ Found {len(results)} Creative Center hashtags for niche: {niche}")
+                    return results
+
+                else:
+                    logger.warning(
+                        "⚠️ No valid JSON found in Perplexity response")
+
+            except json.JSONDecodeError as e:
+                logger.warning(
+                    f"⚠️ Failed to parse JSON from Perplexity response: {e}")
+
+        except Exception as e:
+            logger.error(
+                f"❌ Creative Center hashtag discovery failed for niche '{niche}': {e}")
+
+        # Return empty list if everything failed
+        logger.info(f"📝 Returning empty hashtag list for niche: {niche}")
+        return []
 
     async def health_check(self) -> bool:
         """Check if Perplexity service is available"""

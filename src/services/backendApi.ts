@@ -2,7 +2,7 @@
  * Backend API Service - интеграция с новым Python бэкендом
  */
 import axios from 'axios';
-import { TikTokProfile, TikTokPost, TrendVideo } from '../types';
+import { TikTokProfile, TikTokPost, TrendVideo, CreativeCenterHashtag, NicheHashtagResponse, CreativeCenterAnalysisRequest, CreativeCenterAnalysisResponse } from '../types';
 
 // Backend API configuration
 // В production ВСЕГДА используем относительные пути (nginx прокси)
@@ -373,5 +373,121 @@ export async function clearCache(pattern: string = '*'): Promise<any> {
   } catch (error) {
     console.error('Cache clear error:', error);
     throw new Error('Failed to clear cache');
+  }
+}
+
+/**
+ * Discover Creative Center hashtags for a specific niche using Perplexity AI
+ */
+export async function discoverCreativeCenterHashtags(
+  niche: string,
+  country: string = 'US',
+  language: string = 'en',
+  limit: number = 10,
+  autoDetectGeo: boolean = false,
+  profileData?: any
+): Promise<NicheHashtagResponse> {
+  try {
+    const client = createBackendClient(120000); // 2-minute timeout for AI research
+    
+    console.log(`🔍 Discovering Creative Center hashtags for niche: ${niche}`);
+    
+    const response = await client.post('/api/v1/creative-center/hashtags', {
+      niche,
+      country,
+      language,
+      limit,
+      auto_detect_geo: autoDetectGeo,
+      profile_data: profileData
+    });
+    
+    console.log(`✅ Found ${response.data.hashtags?.length || 0} Creative Center hashtags`);
+    
+    return response.data;
+  } catch (error) {
+    console.error('Creative Center hashtag discovery error:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 503) {
+        throw new Error('Perplexity API key is not configured. Please check your backend configuration.');
+      } else if (error.response?.status === 500) {
+        throw new Error('Creative Center discovery failed. Please try again later.');
+      } else if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+    }
+    
+    throw new Error(`Failed to discover hashtags for niche: "${niche}"`);
+  }
+}
+
+/**
+ * Complete Creative Center + Ensemble Data analysis
+ * This implements the advanced architecture with step-by-step navigation
+ */
+export async function analyzeCreativeCenterComplete(
+  profileUrl: string,
+  country: string = 'US',
+  language: string = 'en',
+  hashtagLimit: number = 5,
+  videosPerHashtag: number = 3,
+  autoDetectGeo: boolean = true,
+  onProgress?: (stage: string, message: string, percentage: number) => void
+): Promise<CreativeCenterAnalysisResponse> {
+  try {
+    const client = createBackendClient(300000); // 5-minute timeout for complete analysis
+    
+    console.log(`🚀 Starting complete Creative Center analysis for: ${profileUrl}`);
+    
+    // Notify progress start
+    onProgress?.('discovery', 'Analyzing user profile and niche...', 10);
+    
+    const requestData: CreativeCenterAnalysisRequest = {
+      profile_url: profileUrl,
+      country,
+      language,
+      hashtag_limit: hashtagLimit,
+      videos_per_hashtag: videosPerHashtag,
+      auto_detect_geo: autoDetectGeo
+    };
+    
+    // Step progress notifications
+    onProgress?.('navigation', 'AI agent navigating Creative Center...', 25);
+    
+    const response = await client.post('/api/v1/analyze-creative-center', requestData);
+    
+    onProgress?.('analysis', 'Analyzing trending videos via Ensemble Data...', 70);
+    
+    // Simulate processing time for user feedback
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    onProgress?.('completion', 'Analysis completed successfully!', 100);
+    
+    const result: CreativeCenterAnalysisResponse = response.data;
+    
+    console.log(`✅ Complete Creative Center analysis finished:`);
+    console.log(`   - Profile: @${result.profile.username}`);
+    console.log(`   - Creative Center hashtags: ${result.creative_center_hashtags.length}`);
+    console.log(`   - Trending videos: ${result.trends.length}`);
+    console.log(`   - Category: ${result.metadata.creative_center_category}`);
+    
+    return result;
+    
+  } catch (error) {
+    console.error('Complete Creative Center analysis error:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 404) {
+        throw new Error('No relevant Creative Center hashtags found for this profile\'s niche');
+      } else if (error.response?.status === 503) {
+        throw new Error('Perplexity API key is not configured. Please check your backend configuration.');
+      } else if (error.response?.status === 500) {
+        throw new Error('Creative Center analysis failed. Please try again later.');
+      } else if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+    }
+    
+    throw new Error(`Failed to analyze Creative Center for profile: "${profileUrl}"`);
   }
 }

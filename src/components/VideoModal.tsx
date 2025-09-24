@@ -71,12 +71,19 @@ const VideoModal: React.FC<VideoModalProps> = ({ trend, isOpen, onClose }) => {
         <div className="p-6 space-y-6">
           {/* Video Preview with Multi-Image Support */}
           <div className="relative">
-            <div className="aspect-[9/16] max-h-96 bg-primary-line rounded-card overflow-hidden">
+            <div className="aspect-[9/16] max-h-96 bg-secondary rounded-card overflow-hidden">
               {trend.cover_image_url ? (
                 <img
                   src={trend.cover_image_url}
                   alt="Content thumbnail"
                   className="w-full h-full object-cover"
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  crossOrigin="anonymous"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement
+                    target.style.display = 'none'
+                  }}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
@@ -102,8 +109,15 @@ const VideoModal: React.FC<VideoModalProps> = ({ trend, isOpen, onClose }) => {
                       src={imageUrl}
                       alt={`Additional image ${index + 1}`}
                       className="w-full h-full object-cover hover:scale-110 transition-transform cursor-pointer"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      crossOrigin="anonymous"
                       onClick={() => {
                         window.open(imageUrl, '_blank');
+                      }}
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement
+                        target.style.visibility = 'hidden'
                       }}
                     />
                   </div>

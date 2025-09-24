@@ -10,7 +10,6 @@ import TrendGrid from './components/TrendGrid';
 import LoadingStates from './components/LoadingStates';
 import ErrorState from './components/ErrorState';
 import VideoModal from './components/VideoModal';
-import Aurora from './components/Aurora';
 import GradientText from './components/GradientText';
 
 function App() {
@@ -59,16 +58,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-primary-bg flex flex-col relative">
-      {/* Background visual */}
-      <div className="absolute inset-0 pointer-events-none opacity-40">
-        <Aurora
-          colorStops={["#3A29FF", "#FF94B4", "#FF3232"]}
-          blend={0.5}
-          amplitude={1.0}
-          speed={0.5}
-        />
-      </div>
+    <div className="min-h-screen bg-background flex flex-col relative">
       <div className="container mx-auto px-4 py-8 flex-grow">
         {/* Error State */}
         {error && (
@@ -128,12 +118,7 @@ function App() {
             <div className="text-center animate-fade-in" style={{ animationDelay: '600ms' }}>
               <button
                 onClick={handleReset}
-                className="
-                  px-8 py-3 
-                  bg-primary-card border border-primary-line rounded-btn
-                  text-text-primary hover:text-text-primary hover:border-primary-accent/30
-                  transition-all duration-150
-                "
+                className="btn-primary"
               >
                 Analyze another profile
               </button>

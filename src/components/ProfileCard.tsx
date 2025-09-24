@@ -17,8 +17,12 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile }) => {
             src={profile.avatar_url || '/default-avatar.png'}
             alt={`${profile.username} avatar`}
             className="w-20 h-20 rounded-full object-cover bg-primary-line"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            crossOrigin="anonymous"
             onError={(e) => {
               const target = e.target as HTMLImageElement;
+              if (target.src.includes('/default-avatar.png')) return;
               target.src = '/default-avatar.png';
             }}
           />

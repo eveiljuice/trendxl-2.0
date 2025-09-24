@@ -21,6 +21,11 @@ from models import (
     HashtagSearchResponse,
     UserSearchRequest,
     UserSearchResponse,
+    CreativeCenterHashtag,
+    NicheHashtagRequest,
+    NicheHashtagResponse,
+    CreativeCenterAnalysisRequest,
+    CreativeCenterAnalysisResponse,
     ErrorResponse,
     HealthCheckResponse
 )
@@ -28,6 +33,7 @@ from services.trend_analysis_service import trend_service
 from services.cache_service import cache_service
 from services.perplexity_service import perplexity_service
 from services.content_relevance_service import content_relevance_service
+from services.advanced_creative_center_service import advanced_creative_center_service
 from utils import RateLimiter, get_current_timestamp
 
 # Configure logging
@@ -383,6 +389,182 @@ async def search_users(
         logger.error(f"User search failed for '{request.query}': {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# Creative Center hashtag discovery endpoint
+
+
+@app.post("/api/v1/creative-center/hashtags", response_model=NicheHashtagResponse)
+async def creative_center_hashtags(
+    request: NicheHashtagRequest
+    # rate_limit: None = Depends(check_rate_limit)
+):
+    """
+    Discover popular Creative Center hashtags for a given niche and region via Perplexity agent.
+
+    This endpoint uses Perplexity AI to browse TikTok Creative Center and find the most relevant
+    and trending hashtags for the specified niche, country, and language.
+    """
+    try:
+        logger.info(
+            f"🔍 Creative Center hashtag discovery requested for niche: {request.niche}")
+
+        # Check if Perplexity API key is configured
+        if not getattr(settings, 'perplexity_api_key', None) or settings.perplexity_api_key.strip() in [
+            "", "demo-perplexity-key", "your-perplexity-api-key-here"
+        ]:
+            raise HTTPException(
+                status_code=503,
+                detail="Perplexity API key is not configured. Creative Center discovery requires a valid Perplexity API key."
+            )
+
+        # Use advanced Creative Center service for step-by-step discovery
+        discovery_results = await advanced_creative_center_service.discover_hashtags_with_navigation(
+            niche=request.niche,
+            country=request.country,
+            language=request.language,
+            limit=request.limit,
+            auto_detect_geo=request.auto_detect_geo,
+            profile_data=request.profile_data
+        )
+
+        # Convert hashtag data to CreativeCenterHashtag objects
+        hashtags = []
+        for hashtag_data in discovery_results.get('hashtags', []):
+            try:
+                hashtag = CreativeCenterHashtag(**hashtag_data)
+                hashtags.append(hashtag)
+            except Exception as e:
+                logger.warning(
+                    f"⚠️ Failed to create CreativeCenterHashtag from data: {e}")
+                continue
+
+        logger.info(
+            f"✅ Advanced Creative Center discovery completed: found {len(hashtags)} hashtags for niche '{request.niche}'")
+
+        return NicheHashtagResponse(
+            niche=discovery_results.get('niche', request.niche),
+            country=discovery_results.get('country', request.country),
+            language=discovery_results.get('language', request.language),
+            category=discovery_results.get('category', 'Unknown'),
+            total_found=discovery_results.get('total_found', 0),
+            hashtags=hashtags
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            f"❌ Creative Center hashtag discovery failed for niche '{request.niche}': {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Creative Center discovery failed: {str(e)}"
+        )
+
+# Advanced Creative Center + Ensemble analysis endpoint
+
+
+@app.post("/api/v1/analyze-creative-center", response_model=CreativeCenterAnalysisResponse)
+async def analyze_creative_center_complete(
+    request: CreativeCenterAnalysisRequest
+    # rate_limit: None = Depends(check_rate_limit)
+):
+    """
+    Complete Creative Center + Ensemble Data analysis workflow.
+
+    This endpoint implements the advanced architecture:
+    1. Discovers hashtags from Creative Center via Perplexity agent
+    2. Searches trending videos for each hashtag via Ensemble Data
+    3. Applies intelligent filtering and relevance analysis
+    4. Returns comprehensive results with metadata
+    """
+    try:
+        from utils import extract_tiktok_username
+
+        username = extract_tiktok_username(request.profile_url)
+        logger.info(
+            f"🚀 Starting complete Creative Center analysis for @{username}")
+
+        # Check API keys
+        if not getattr(settings, 'perplexity_api_key', None) or settings.perplexity_api_key.strip() in [
+            "", "demo-perplexity-key", "your-perplexity-api-key-here"
+        ]:
+            raise HTTPException(
+                status_code=503,
+                detail="Perplexity API key is required for Creative Center analysis"
+            )
+
+        # Step 1: Get user profile for niche detection
+        profile = await trend_service.get_profile_only(username)
+        logger.info(
+            f"📊 Profile loaded for @{username}: {profile.niche_category}")
+
+        # Step 2: Discover Creative Center hashtags using advanced agent
+        cc_discovery = await advanced_creative_center_service.discover_hashtags_with_navigation(
+            niche=profile.niche_category or "General Content Creator",
+            country=request.country,
+            language=request.language,
+            limit=request.hashtag_limit,
+            auto_detect_geo=request.auto_detect_geo,
+            profile_data=profile.model_dump() if request.auto_detect_geo else None
+        )
+
+        cc_hashtags_data = cc_discovery.get('hashtags', [])
+        if not cc_hashtags_data:
+            raise HTTPException(
+                status_code=404,
+                detail="No relevant Creative Center hashtags found for this profile's niche"
+            )
+
+        logger.info(
+            f"🎯 Found {len(cc_hashtags_data)} Creative Center hashtags")
+
+        # Step 3: Analyze hashtags with Ensemble Data
+        ensemble_analysis = await trend_service.analyze_creative_center_hashtags(
+            profile_url=request.profile_url,
+            creative_center_hashtags=cc_hashtags_data,
+            videos_per_hashtag=request.videos_per_hashtag
+        )
+
+        # Step 4: Convert Creative Center data to model objects
+        cc_hashtags = []
+        for hashtag_data in cc_hashtags_data:
+            try:
+                cc_hashtag = CreativeCenterHashtag(**hashtag_data)
+                cc_hashtags.append(cc_hashtag)
+            except Exception as e:
+                logger.warning(
+                    f"⚠️ Failed to convert Creative Center hashtag: {e}")
+                continue
+
+        # Step 5: Prepare comprehensive response
+        metadata = {
+            "creative_center_category": cc_discovery.get('category', 'Unknown'),
+            "total_cc_hashtags_analyzed": cc_discovery.get('total_found', 0),
+            "navigation_successful": cc_discovery.get('navigation_success', True),
+            "region_used": cc_discovery.get('country', request.country),
+            "total_videos_found": len(ensemble_analysis.get('trends', [])),
+            "analysis_method": "Creative Center + Ensemble Data integration"
+        }
+
+        logger.info(
+            f"✅ Complete Creative Center analysis finished: {len(ensemble_analysis.get('trends', []))} trending videos")
+
+        return CreativeCenterAnalysisResponse(
+            profile=ensemble_analysis.get('profile', profile),
+            creative_center_hashtags=cc_hashtags,
+            trends=ensemble_analysis.get('trends', []),
+            analysis_summary=ensemble_analysis.get('analysis_summary', ''),
+            metadata=metadata
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Complete Creative Center analysis failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Creative Center analysis failed: {str(e)}"
+        )
+
 # Cache management endpoints
 
 
@@ -457,7 +639,9 @@ async def root():
             "profile": "/api/v1/profile",
             "posts": "/api/v1/posts",
             "hashtag_search": "/api/v1/hashtag/search",
-            "user_search": "/api/v1/users/search"
+            "user_search": "/api/v1/users/search",
+            "creative_center_hashtags": "/api/v1/creative-center/hashtags",
+            "analyze_creative_center": "/api/v1/analyze-creative-center"
         }
     }
 

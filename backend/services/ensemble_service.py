@@ -319,7 +319,7 @@ class EnsembleService:
 
             final_posts = quality_posts[:count] if quality_posts else posts[:count]
             logger.info(
-                f"✅ Found {len(final_posts)} quality posts for #{clean_hashtag}")
+                f"✅ Found {len(final_posts)} quality posts for #{clean_hashtag} (requested: {count})")
 
             return final_posts
 
@@ -345,6 +345,128 @@ class EnsembleService:
             logger.error(f"❌ Failed to search hashtag #{clean_hashtag}: {e}")
             raise Exception(
                 f"Unable to search hashtag #{clean_hashtag}. Error: {str(e)}")
+
+    async def search_popular_videos(
+        self,
+        count: int = 10,
+        period: int = 7
+    ) -> List[TikTokPost]:
+        """
+        Search for popular TikTok videos using trending keywords
+
+        Args:
+            count: Number of videos to return (max 50)
+            period: Period in days to search (7, 30, 90, 180 days)
+
+        Returns:
+            List of popular TikTokPost objects
+        """
+        count = min(count, 50)
+        logger.info(
+            f"🔥 Searching for {count} popular videos (period: {period} days)")
+
+        try:
+            # Use trending keywords to find popular content
+            popular_keywords = [
+                "viral", "trending", "fyp", "foryou", "trend", "popular", "tiktok",
+                "funny", "comedy", "dance", "music", "challenge"
+            ]
+
+            all_posts = []
+            videos_per_keyword = max(2, count // len(popular_keywords) + 1)
+
+            # Search with multiple popular keywords to get diverse content
+            for keyword in popular_keywords[:6]:  # Use top 6 keywords
+                try:
+                    response = await self._run_in_executor(
+                        self.client.tiktok.keyword_search,
+                        keyword=keyword,
+                        period=str(period),
+                        count=videos_per_keyword
+                    )
+
+                    # Log billing info
+                    units_charged = getattr(response, 'units_charged', 0)
+                    if units_charged:
+                        logger.info(
+                            f"💰 Ensemble units charged (keyword '{keyword}'): {units_charged}")
+
+                    # Extract data from response
+                    search_data = response.data if hasattr(
+                        response, 'data') else response
+                    posts_list = search_data.get("data", []) if isinstance(
+                        search_data, dict) else []
+
+                    logger.debug(
+                        f"🔍 Keyword '{keyword}' returned {len(posts_list)} posts")
+
+                    # Convert to TikTokPost objects
+                    for post_data in posts_list:
+                        try:
+                            post = await self._convert_to_tiktok_post(post_data)
+                            if post and post.views > 1000:  # Filter for popular content only
+                                all_posts.append(post)
+                        except Exception as post_error:
+                            logger.debug(
+                                f"⚠️ Failed to convert post from keyword '{keyword}': {post_error}")
+                            continue
+
+                    # Add delay to avoid rate limiting
+                    await asyncio.sleep(0.5)
+
+                except Exception as keyword_error:
+                    logger.warning(
+                        f"⚠️ Failed to search keyword '{keyword}': {keyword_error}")
+                    continue
+
+            if not all_posts:
+                logger.warning(
+                    "⚠️ No popular videos found, using fallback method")
+                # Fallback: try with general search
+                try:
+                    response = await self._run_in_executor(
+                        self.client.tiktok.keyword_search,
+                        keyword="tiktok",
+                        period=str(period),
+                        count=count
+                    )
+
+                    search_data = response.data if hasattr(
+                        response, 'data') else response
+                    posts_list = search_data.get("data", []) if isinstance(
+                        search_data, dict) else []
+
+                    for post_data in posts_list:
+                        try:
+                            post = await self._convert_to_tiktok_post(post_data)
+                            if post:
+                                all_posts.append(post)
+                        except Exception:
+                            continue
+                except Exception as fallback_error:
+                    logger.error(f"❌ Fallback search failed: {fallback_error}")
+
+            # Remove duplicates based on aweme_id
+            unique_posts = {}
+            for post in all_posts:
+                if post.aweme_id not in unique_posts:
+                    unique_posts[post.aweme_id] = post
+
+            # Sort by engagement (views + likes) and get top posts
+            sorted_posts = sorted(
+                unique_posts.values(),
+                key=lambda p: (p.views or 0) + (p.likes or 0),
+                reverse=True
+            )
+
+            final_posts = sorted_posts[:count]
+            logger.info(f"✅ Found {len(final_posts)} popular videos")
+
+            return final_posts
+
+        except Exception as e:
+            logger.error(f"❌ Popular videos search failed: {e}")
+            return []
 
     async def _search_hashtag_with_cursor(
         self,

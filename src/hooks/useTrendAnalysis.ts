@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { TikTokProfile, TikTokPost, TrendVideo, AppState } from '../types';
-import { analyzeProfileTrends, analyzeProfileTrendsWithProgress, checkBackendHealth } from '../services/backendApi';
+import { analyzeProfileTrends, analyzeProfileTrendsWithProgress, analyzeCreativeCenterComplete, checkBackendHealth } from '../services/backendApi';
 // Mock data service removed - using only real data
 import { extractTikTokUsername } from '../utils';
 
@@ -69,31 +69,65 @@ export const useTrendAnalysis = () => {
       };
 
       try {
-        // Call Python backend with progress tracking
-        const result = await analyzeProfileTrendsWithProgress(profileInput, onProgress);
+        // First, try the new Creative Center complete analysis
+        console.log('🎯 Attempting Creative Center + Ensemble analysis...');
+        const creativeResult = await analyzeCreativeCenterComplete(
+          profileInput, 
+          'US', // default country
+          'en', // default language
+          5,    // hashtag limit
+          3,    // videos per hashtag
+          true, // auto detect geo
+          onProgress
+        );
+        
+        // Extract hashtags from Creative Center result
+        const creativeCenterHashtags = creativeResult.creative_center_hashtags.map(h => h.name);
         
         updateState({
-          profile: result.profile,
-          posts: result.posts,
-          hashtags: result.hashtags,
-          trends: result.trends
+          profile: creativeResult.profile,
+          posts: [], // Creative Center analysis doesn't return user posts
+          hashtags: creativeCenterHashtags,
+          trends: creativeResult.trends
         });
         
-        console.log(`✅ Анализ завершен через Python бэкенд! Найдено ${result.trends.length} трендовых видео`);
+        console.log(`✅ Creative Center анализ завершен! Найдено ${creativeResult.trends.length} трендовых видео и ${creativeCenterHashtags.length} хештегов из Creative Center`);
         
-      } catch (backendError) {
-        console.error('❌ Backend анализ не удался:', backendError);
+      } catch (creativeCenterError) {
+        console.error('❌ Creative Center анализ не удался:', creativeCenterError);
         
-        // Fallback to simple analysis if progress version fails
-        console.log('🔄 Пытаемся простой анализ без отслеживания прогресса...');
-        const result = await analyzeProfileTrends(profileInput);
-        
-        updateState({
-          profile: result.profile,
-          posts: result.posts,
-          hashtags: result.hashtags,
-          trends: result.trends
-        });
+        // Fallback to traditional analysis with progress tracking
+        // НО БЕЗ хештегов - они должны приходить только из Creative Center!
+        console.log('🔄 Переключаемся на традиционный анализ с отслеживанием прогресса...');
+        try {
+          const result = await analyzeProfileTrendsWithProgress(profileInput, onProgress);
+          
+          updateState({
+            profile: result.profile,
+            posts: result.posts,
+            hashtags: [], // Не показываем хештеги из традиционного анализа
+            trends: result.trends
+          });
+          
+          console.log(`✅ Традиционный анализ завершен! Найдено ${result.trends.length} трендовых видео`);
+          console.log('ℹ️ Хештеги не отображаются - доступны только через Creative Center анализ');
+          
+        } catch (backendError) {
+          console.error('❌ Backend анализ не удался:', backendError);
+          
+          // Final fallback to simple analysis
+          console.log('🔄 Пытаемся простой анализ без отслеживания прогресса...');
+          const result = await analyzeProfileTrends(profileInput);
+          
+          updateState({
+            profile: result.profile,
+            posts: result.posts,
+            hashtags: [], // Не показываем хештеги из простого анализа
+            trends: result.trends
+          });
+          
+          console.log('ℹ️ Хештеги не отображаются - доступны только через Creative Center анализ');
+        }
       }
       
     } catch (error) {

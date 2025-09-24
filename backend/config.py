@@ -161,10 +161,11 @@ class Settings(BaseSettings):
         if len(token) < 20:
             logger.warning("⚠️ Perplexity key appears too short")
         elif not token.startswith('pplx-'):
-            logger.warning("⚠️ Perplexity API key format may be invalid (should start with 'pplx-')")
+            logger.warning(
+                "⚠️ Perplexity API key format may be invalid (should start with 'pplx-')")
         else:
             logger.info("✅ Perplexity API key validated")
-            
+
         return token
 
 

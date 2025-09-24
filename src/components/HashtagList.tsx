@@ -15,12 +15,12 @@ const HashtagList: React.FC<HashtagListProps> = ({ hashtags }) => {
           <Hash className="w-4 h-4 text-primary-accent" />
         </div>
         <h3 className="text-lg font-semibold text-text-primary">
-          Key hashtags
+          Creative Center hashtags
         </h3>
       </div>
       
       <p className="text-text-secondary text-sm mb-4">
-        AI analyzed the most popular posts and extracted these trending hashtags:
+        AI agent found these trending hashtags from TikTok Creative Center for your niche:
       </p>
 
       <div className="flex flex-wrap gap-2">
