@@ -16,6 +16,7 @@
     "@chakra-ui/icons": "^2.2.4",
     "@chakra-ui/react": "^3.26.0",
     "@emotion/react": "^11.14.0",
+    "@rc-component/progress": "^4.0.0",
     "axios": "^1.6.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
