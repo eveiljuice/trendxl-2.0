@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp, ExternalLink } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
 import { TrendVideo } from '../types';
 import TrendCard from './TrendCard';
 import { getStaggerDelay } from '../utils';
@@ -13,35 +13,32 @@ const TrendGrid: React.FC<TrendGridProps> = ({ trends, onTrendClick }) => {
   if (trends.length === 0) return null;
 
   return (
-    <div className="section-spacing animate-slide-up">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center space-x-3">
-          <div className="flex items-center justify-center w-10 h-10 bg-primary-accent/10 rounded-full">
-            <TrendingUp className="w-5 h-5 text-primary-accent" />
+    <div className="space-y-6 sm:space-y-8 animate-slide-up">
+      {/* Enhanced Header - адаптивные отступы */}
+      <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl border border-gray-200 p-4 sm:p-6 md:p-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+          <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-lg sm:rounded-xl shadow-lg animate-pulse flex-shrink-0">
+            <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
           </div>
-          <div>
-            <h2 className="text-2xl font-bold text-text-primary">
-              Trending videos
+          <div className="flex-1 w-full">
+            <h2 className="text-xl sm:text-2xl font-bold text-black font-orbitron mb-1">
+              Trending Videos
             </h2>
-            <p className="text-text-secondary">
-              Found {trends.length} popular videos (niche-specific + trending content)
+            <p className="text-sm sm:text-base text-gray-600 font-inter">
+              Discovered <span className="font-semibold text-black">{trends.length}</span> popular videos with niche-specific content
             </p>
           </div>
+          <div className="text-left sm:text-right w-full sm:w-auto">
+            <div className="text-xl sm:text-2xl font-bold text-purple-600 font-orbitron">
+              {trends.length}
+            </div>
+            <div className="text-xs sm:text-sm text-gray-500 font-medium">Videos Found</div>
+          </div>
         </div>
-
-        {/* View All Link */}
-        <button className="
-          flex items-center space-x-2 text-primary-accent hover:text-primary-accent-hover
-          transition-colors duration-150
-        ">
-          <span className="text-sm font-medium">All trends</span>
-          <ExternalLink className="w-4 h-4" />
-        </button>
       </div>
 
-      {/* Trends Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-stretch">
+      {/* Enhanced Trends Grid - адаптивная сетка: 1 на мобиле, 2 на планшете, 3-4 на десктопе */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 md:gap-8 items-stretch">
         {trends.map((trend, index) => (
           <div
             key={trend.id}
@@ -58,16 +55,16 @@ const TrendGrid: React.FC<TrendGridProps> = ({ trends, onTrendClick }) => {
         ))}
       </div>
 
-      {/* Load More Button (for future implementation) */}
+      {/* Enhanced Load More Button - адаптивные размеры */}
       {trends.length >= 10 && (
-        <div className="text-center mt-8">
+        <div className="text-center">
           <button className="
-            px-6 py-3 
-            bg-primary-card border border-primary-line rounded-btn
-            text-text-primary hover:text-text-primary hover:border-primary-accent/30
-            transition-all duration-150
+            px-6 py-3 sm:px-8 sm:py-4 bg-black text-white font-orbitron font-bold rounded-lg sm:rounded-xl text-sm sm:text-base
+            hover:bg-gray-800 hover:shadow-xl hover:scale-105
+            transition-all duration-200 shadow-lg
+            border-2 border-transparent hover:border-gray-300
           ">
-            Load more
+            Load More Trends
           </button>
         </div>
       )}

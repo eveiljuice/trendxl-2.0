@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { Search, Sparkles, AlertCircle } from 'lucide-react';
+import { Search, Sparkles, AlertCircle, Zap, Star } from 'lucide-react';
 import { Box, Button, Input, VStack, HStack, Text } from '@chakra-ui/react';
 import ApiStatusBanner from './ApiStatusBanner';
-import GradientText from './GradientText';
 import { ProfileInputProps } from '../types';
 import { isValidTikTokInput } from '../utils';
 
@@ -29,104 +28,173 @@ const ProfileInput: React.FC<ProfileInputProps> = ({ onSubmit, isLoading }) => {
   };
 
   return (
-    <Box className="min-h-screen flex items-center justify-center">
-      <VStack spacing={8} maxW="2xl" w="full" px={4}>
-        {/* API Status Banner */}
-        <ApiStatusBanner />
-        
-        {/* Header */}
-        <VStack spacing={6} textAlign="center">
-          <Box className="inline-flex items-center justify-center w-20 h-20 bg-primary-card rounded-full">
-            <Sparkles className="w-10 h-10 text-primary-accent" />
-          </Box>
-          
-          <Box>
-            <Text fontSize="5xl" fontWeight="bold" className="font-orbitron mb-4">
-              <GradientText
-                colors={["#40ffaa", "#4079ff", "#40ffaa", "#4079ff", "#40ffaa"]}
-                animationSpeed={3}
-                showBorder={false}
-              >
-                TrendXL 2.0
-              </GradientText>
-            </Text>
-            <Text fontSize="xl" color="text.secondary" maxW="2xl" className="font-inter">
-              Analyze TikTok profiles and discover the hottest trends with AI-powered insights
-            </Text>
-          </Box>
-        </VStack>
+    <Box className="min-h-screen bg-gradient-to-br from-white via-gray-50 to-white relative overflow-hidden">
+      {/* Background Decorative Elements */}
+      <div className="absolute inset-0 pointer-events-none">
+        {/* Subtle pattern - скрываем на мобильных для производительности */}
+        <div className="hidden sm:block absolute top-20 left-10 w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gray-200 opacity-30"></div>
+        <div className="hidden md:block absolute bottom-40 right-20 w-20 h-20 md:w-24 md:h-24 rounded-full bg-gray-200 opacity-25"></div>
+        <div className="hidden lg:block absolute top-1/2 right-10 w-16 h-16 rounded-full bg-gray-200 opacity-20"></div>
+      </div>
 
-        {/* Input Form */}
-        <Box w="full" maxW="xl">
-          <form onSubmit={handleSubmit}>
-            <VStack spacing={4}>
-              <Box position="relative" w="full">
-                <Box position="absolute" left={4} top="50%" transform="translateY(-50%)" zIndex={2}>
-                  <Search className="h-5 w-5 text-text-secondary" />
-                </Box>
-                <Input
-                  value={input}
-                  onChange={handleInputChange}
-                  placeholder="Enter TikTok profile link or @username"
-                  pl={12}
-                  py={6}
-                  fontSize="md"
-                  bg="primary.card"
-                  border="1px"
-                  borderColor={error ? "red.500" : "primary.line"}
-                  color="text.primary"
-                  _placeholder={{ color: "text.secondary" }}
-                  _hover={{ borderColor: "primary.accent/30" }}
-                  _focus={{ 
-                    outline: "none", 
-                    ring: 2, 
-                    ringColor: "primary.accent", 
-                    borderColor: "transparent" 
-                  }}
-                  borderRadius="card"
-                  isDisabled={isLoading}
-                  className="font-jetbrains"
+      <div className="flex items-center justify-center min-h-screen relative z-10">
+        <VStack spacing={8} md:spacing={12} maxW="4xl" w="full" px={4} sm:px={6} md:px={8}>
+          {/* API Status Banner */}
+          <ApiStatusBanner />
+          
+          {/* Hero Section */}
+          <VStack spacing={8} textAlign="center">
+            {/* Logo and Icons - адаптивные размеры */}
+            <div className="relative animate-float">
+              <Box className="inline-flex items-center justify-center w-20 h-20 sm:w-24 sm:h-24 bg-white rounded-xl sm:rounded-2xl shadow-xl border-2 border-gray-200 relative overflow-hidden hover:shadow-2xl transition-all duration-300">
+                <div className="absolute inset-0 bg-gradient-to-br from-transparent to-gray-50 opacity-50"></div>
+                <img
+                  src="/photo.svg"
+                  alt="Trendzl Logo"
+                  className="w-10 h-10 sm:w-12 sm:h-12 relative z-10"
                 />
               </Box>
-              
-              {/* Error Message */}
-              {error && (
-                <HStack color="red.400" fontSize="sm" className="animate-fade-in">
-                  <AlertCircle className="w-4 h-4" />
-                  <Text>{error}</Text>
-                </HStack>
-              )}
 
-              {/* Submit Button */}
-              <Button
-                type="submit"
-                isDisabled={isLoading || !input.trim()}
-                w="full"
-                size="lg"
-                bg="primary.accent"
-                color="white"
-                _hover={{ bg: "primary.accent-hover" }}
-                _disabled={{ opacity: 0.5, cursor: "not-allowed" }}
-                className={`font-orbitron ${isLoading ? 'animate-pulse' : ''}`}
-                borderRadius="btn"
-                py={6}
-              >
-                {isLoading ? (
-                  <HStack>
-                    <Box className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <Text>Analyzing profile...</Text>
-                  </HStack>
-                ) : (
-                  <HStack>
-                    <Sparkles className="w-5 h-5" />
-                    <Text>Discover Trends</Text>
+              {/* Floating icons with enhanced animations - скрываем на самых маленьких экранах */}
+              <div className="hidden xs:flex absolute -top-2 -right-2 w-7 h-7 sm:w-8 sm:h-8 bg-black rounded-full items-center justify-center animate-bounce-subtle shadow-lg">
+                <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" fill="currentColor" />
+              </div>
+              <div className="hidden xs:flex absolute -bottom-1 -left-3 w-5 h-5 sm:w-6 sm:h-6 bg-gray-600 rounded-full items-center justify-center animate-pulse shadow-md">
+                <Zap className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" fill="currentColor" />
+              </div>
+            </div>
+            
+            {/* Main Heading - адаптивные размеры текста */}
+            <div className="space-y-4 sm:space-y-6">
+              <div>
+                <Text fontSize={{ base: "4xl", sm: "5xl", md: "6xl" }} fontWeight="900" className="font-orbitron text-black leading-none tracking-tight">
+                  Trendzl
+                </Text>
+                <Text fontSize={{ base: "md", sm: "lg", md: "xl" }} fontWeight="bold" className="font-orbitron text-gray-600 -mt-1 sm:-mt-2">
+                  AI Trend Hunter
+                </Text>
+              </div>
+              
+              {/* Subtitle with enhanced styling - адаптивные размеры */}
+              <div className="max-w-3xl mx-auto">
+                <Text fontSize={{ base: "xl", sm: "2xl" }} className="font-inter text-black font-semibold mb-2 sm:mb-3">
+                  Discover What's Trending
+                </Text>
+                <Text fontSize={{ base: "sm", sm: "md", md: "lg" }} className="font-inter leading-relaxed text-gray-700">
+                  Analyze TikTok profiles and uncover the hottest trends with AI-powered insights. 
+                  Get data-driven recommendations for your content strategy.
+                </Text>
+              </div>
+              
+              {/* Feature badges - адаптивные отступы и размеры */}
+              <HStack spacing={{ base: 2, sm: 3, md: 4 }} justify="center" flexWrap="wrap">
+                <Box className="bg-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-gray-200 shadow-md hover:shadow-lg transition-shadow">
+                  <Text fontSize={{ base: "xs", sm: "sm" }} className="font-medium text-gray-700">AI-Powered</Text>
+                </Box>
+                <Box className="bg-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-gray-200 shadow-md hover:shadow-lg transition-shadow">
+                  <Text fontSize={{ base: "xs", sm: "sm" }} className="font-medium text-gray-700">Real-time Data</Text>
+                </Box>
+                <Box className="bg-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-gray-200 shadow-md hover:shadow-lg transition-shadow">
+                  <Text fontSize={{ base: "xs", sm: "sm" }} className="font-medium text-gray-700">Trend Analysis</Text>
+                </Box>
+              </HStack>
+            </div>
+          </VStack>
+
+          {/* Enhanced Input Form - адаптивные размеры */}
+          <Box w="full" maxW="2xl">
+            <form onSubmit={handleSubmit}>
+              <VStack spacing={{ base: 4, sm: 5, md: 6 }}>
+                {/* Input Section with better styling - адаптивные отступы */}
+                <Box w="full" className="bg-white rounded-xl sm:rounded-2xl shadow-xl border border-gray-200 p-1.5 sm:p-2">
+                  <Box position="relative" w="full">
+                    <Box position="absolute" left={{ base: 4, sm: 6 }} top="50%" transform="translateY(-50%)" zIndex={2}>
+                      <Search className="h-5 w-5 sm:h-6 sm:w-6 text-gray-500" />
+                    </Box>
+                    <Input
+                      value={input}
+                      onChange={handleInputChange}
+                      placeholder="Enter TikTok profile link or @username"
+                      pl={{ base: 12, sm: 14, md: 16 }}
+                      pr={{ base: 4, sm: 6 }}
+                      py={{ base: 5, sm: 6, md: 7 }}
+                      fontSize={{ base: "md", sm: "lg" }}
+                      bg="transparent"
+                      border="none"
+                      color="black"
+                      _placeholder={{ color: "gray.500", fontSize: { base: "sm", sm: "md" } }}
+                      _hover={{ bg: "transparent" }}
+                      _focus={{ 
+                        outline: "none",
+                        bg: "transparent"
+                      }}
+                      borderRadius={{ base: "lg", sm: "xl" }}
+                      isDisabled={isLoading}
+                      className="font-jetbrains"
+                    />
+                  </Box>
+                </Box>
+                
+                {/* Error Message */}
+                {error && (
+                  <HStack color="red.500" fontSize="sm" className="animate-fade-in bg-red-50 p-3 rounded-lg">
+                    <AlertCircle className="w-4 h-4" />
+                    <Text fontWeight="medium">{error}</Text>
                   </HStack>
                 )}
-              </Button>
-            </VStack>
-          </form>
-        </Box>
-      </VStack>
+
+                {/* Enhanced Submit Button - адаптивные размеры */}
+                <Button
+                  type="submit"
+                  isDisabled={isLoading || !input.trim()}
+                  w="full"
+                  size={{ base: "md", sm: "lg" }}
+                  bg="black"
+                  color="white"
+                  _hover={{ 
+                    bg: "gray.800",
+                    transform: "translateY(-2px)",
+                    shadow: "xl"
+                  }}
+                  _active={{
+                    transform: "translateY(0px)"
+                  }}
+                  _disabled={{ 
+                    opacity: 0.5, 
+                    cursor: "not-allowed",
+                    bg: "gray.400"
+                  }}
+                  className={`font-orbitron font-bold text-base sm:text-lg transition-all duration-200 ${isLoading ? 'animate-pulse' : ''}`}
+                  borderRadius={{ base: "lg", sm: "xl" }}
+                  py={{ base: 6, sm: 7, md: 8 }}
+                  shadow="lg"
+                >
+                  {isLoading ? (
+                    <HStack spacing={{ base: 2, sm: 3 }}>
+                      <Box className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <Text fontSize={{ base: "sm", sm: "md" }}>Analyzing...</Text>
+                    </HStack>
+                  ) : (
+                    <HStack spacing={{ base: 2, sm: 3 }}>
+                      <img
+                        src="/photo.svg"
+                        alt="Logo"
+                        className="w-4 h-4 sm:w-5 sm:h-5"
+                      />
+                      <Text fontSize={{ base: "sm", sm: "md" }}>Discover Trends</Text>
+                    </HStack>
+                  )}
+                </Button>
+                
+                {/* Help text - адаптивный размер */}
+                <Text fontSize={{ base: "xs", sm: "sm" }} color="gray.600" textAlign="center" className="font-inter">
+                  Enter a TikTok username like "@zachking" or paste a profile link
+                </Text>
+              </VStack>
+            </form>
+          </Box>
+        </VStack>
+      </div>
     </Box>
   );
 };

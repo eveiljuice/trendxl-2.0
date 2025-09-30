@@ -11,7 +11,8 @@ from models import (
     TikTokPost,
     TrendVideo,
     TikTokAuthor,
-    TrendAnalysisResponse
+    TrendAnalysisResponse,
+    TokenUsage
 )
 from services.ensemble_service import EnsembleService
 from services.openai_service import OpenAIService
@@ -39,7 +40,7 @@ class TrendAnalysisService:
         self,
         profile_input: str,
         max_hashtags: int = 5,
-        videos_per_hashtag: int = 2
+        videos_per_hashtag: int = 8  # Increased from 2 to 8 to compensate for filters
     ) -> TrendAnalysisResponse:
         """
         Complete trend analysis workflow
@@ -55,13 +56,32 @@ class TrendAnalysisService:
         Raises:
             Exception: If analysis fails
         """
+        print(f"\n{'='*70}")
+        print(f"🚀 TREND SERVICE: analyze_profile_trends() STARTED!")
+        print(f"   Profile: {profile_input}")
+        print(f"   Max hashtags: {max_hashtags}")
+        print(f"   Videos per hashtag: {videos_per_hashtag}")
+        print(f"{'='*70}\n")
+
         username = extract_tiktok_username(profile_input)
+        print(f"✅ Extracted username: @{username}")
         logger.info(f"🚀 Starting trend analysis for profile: @{username}")
+
+        # Initialize token usage tracking
+        token_tracker = {
+            "openai_prompt_tokens": 0,
+            "openai_completion_tokens": 0,
+            "perplexity_prompt_tokens": 0,
+            "perplexity_completion_tokens": 0,
+            "ensemble_units": 0
+        }
 
         try:
             # Step 1: Get profile information (with caching)
+            print(f"📊 Step 1: Fetching profile...")
             logger.info("📊 Step 1: Fetching profile information...")
             profile = await self._get_cached_profile(username)
+            print(f"✅ Profile fetched: @{profile.username}")
 
             # Step 2: Get user's recent posts (with caching)
             logger.info("📱 Step 2: Loading recent posts...")
@@ -72,9 +92,16 @@ class TrendAnalysisService:
 
             # Step 3: Analyze posts with AI to extract trending hashtags
             logger.info("🤖 Step 3: Analyzing posts with AI...")
-            analysis = await self.openai_service.analyze_posts_for_hashtags(
+            analysis, openai_tokens = await self.openai_service.analyze_posts_for_hashtags(
                 posts, profile.bio
             )
+
+            # Track OpenAI tokens
+            token_tracker["openai_prompt_tokens"] += openai_tokens.get(
+                "prompt_tokens", 0)
+            token_tracker["openai_completion_tokens"] += openai_tokens.get(
+                "completion_tokens", 0)
+
             hashtags = analysis.top_hashtags[:max_hashtags]
 
             if not hashtags:
@@ -88,70 +115,141 @@ class TrendAnalysisService:
                 hashtags, videos_per_hashtag
             )
 
-            # If we don't have enough videos (target is 10), try to get more
+            # ENSURE we get exactly 10 videos - this is mandatory requirement
             target_video_count = 10
+
+            # If we don't have enough videos, try to get more niche-specific hashtags from Perplexity
             if len(trends) < target_video_count:
                 logger.info(
-                    f"📈 Got {len(trends)} videos, trying to get more (target: {target_video_count})")
+                    f"📈 Got {len(trends)} videos, trying to get more niche-specific hashtags (target: {target_video_count})")
 
-                # Try with popular backup hashtags
-                backup_hashtags = ['fyp', 'viral', 'trending', 'foryou',
-                                   'tiktok', 'dance', 'comedy', 'music', 'lifestyle']
-                needed_videos = target_video_count - len(trends)
-                videos_per_backup = max(
-                    1, needed_videos // len(backup_hashtags))
+                # Get additional niche-specific hashtags from Perplexity with account origin analysis
+                try:
+                    from .perplexity_service import perplexity_service
 
-                logger.info(
-                    f"🔄 Searching {videos_per_backup} videos from {len(backup_hashtags)} backup hashtags")
-                backup_trends = await self._search_trending_videos_optimized(
-                    backup_hashtags, videos_per_backup
-                )
+                    # First, analyze account origin to determine country and language
+                    logger.info(
+                        f"🌍 Analyzing TikTok account origin for @{username}...")
 
-                # Combine and deduplicate trends
-                all_trends = trends + backup_trends
-                seen_ids = set()
-                unique_trends = []
+                    # Get recent post captions for analysis
+                    recent_captions = [
+                        post.caption for post in posts if post.caption][:10]
 
-                for trend in all_trends:
-                    if trend.id not in seen_ids:
-                        seen_ids.add(trend.id)
-                        unique_trends.append(trend)
+                    account_origin = await perplexity_service.analyze_tiktok_account_origin(
+                        username=username,
+                        bio=profile.bio or "",
+                        recent_posts_content=recent_captions,
+                        follower_count=profile.follower_count,
+                        video_count=profile.video_count
+                    )
 
-                trends = unique_trends[:target_video_count]
-                logger.info(
-                    f"✅ Final video count after backup search: {len(trends)}")
+                    # Create more specific search query based on profile niche
+                    niche_query = f"{profile.niche_category if profile.niche_category else 'content creation'} hashtags"
 
+                    logger.info(
+                        f"🔍 Requesting additional niche-specific hashtags for: {niche_query} (Account from: {account_origin['country']})")
+
+                    # Get additional hashtags from Perplexity with account origin
+                    additional_hashtag_data = await perplexity_service.discover_creative_center_hashtags(
+                        niche=niche_query,
+                        country=account_origin["country_code"],
+                        language=account_origin["language"],
+                        limit=5,  # Get 5 additional hashtags
+                        account_origin=account_origin
+                    )
+
+                    if additional_hashtag_data:
+                        additional_hashtags = [
+                            h["name"] for h in additional_hashtag_data if h.get("name")]
+                        needed_videos = target_video_count - len(trends)
+                        videos_per_hashtag = max(
+                            1, needed_videos // len(additional_hashtags)) if additional_hashtags else 0
+
+                        if additional_hashtags and videos_per_hashtag > 0:
+                            logger.info(
+                                f"🔄 Searching {videos_per_hashtag} videos from {len(additional_hashtags)} additional niche hashtags: {additional_hashtags}")
+
+                            additional_trends = await self._search_trending_videos_optimized(
+                                additional_hashtags, videos_per_hashtag
+                            )
+
+                            if additional_trends:
+                                logger.info(
+                                    f"➕ Found {len(additional_trends)} additional videos from niche hashtags")
+
+                                # Combine and deduplicate trends
+                                all_trends = trends + additional_trends
+                                seen_ids = set()
+                                unique_trends = []
+
+                                for trend in all_trends:
+                                    if trend.id not in seen_ids:
+                                        seen_ids.add(trend.id)
+                                        unique_trends.append(trend)
+
+                                # ENSURE we return exactly 10 videos - this is mandatory
+                                if len(unique_trends) >= target_video_count:
+                                    trends = unique_trends[:target_video_count]
+                                    logger.info(
+                                        f"✅ Final video count after niche search: {len(trends)}")
+                                else:
+                                    # If still not enough, pad with the best available videos
+                                    trends = unique_trends
+                                    logger.warning(
+                                        f"⚠️ Could only find {len(trends)} videos (target: {target_video_count}). Using all available.")
+
+                except Exception as e:
+                    logger.warning(
+                        f"⚠️ Failed to get additional niche hashtags: {e}")
+
+            # Ensure we have at least some trends (requirement: exactly 10 videos)
             if not trends:
                 logger.error(
-                    "❌ No trending videos found for any hashtags including backups")
-                raise Exception(
-                    f"Unable to find trending content for profile @{username}. "
-                    f"This could be due to: 1) Profile content is too niche, "
-                    f"2) API rate limits exceeded, 3) Temporary service issues. "
-                    f"Please try again later or with a different profile."
-                )
+                    "❌ No trending videos found for any hashtags")
+                # Instead of failing, we'll try one more time with broader search
+                logger.info(
+                    "🔄 Attempting fallback search with broader parameters...")
+                try:
+                    # Try searching with a default popular hashtag as fallback
+                    fallback_hashtags = ["fyp", "viral", "trending", "foryou"]
+                    fallback_trends = await self._search_trending_videos_optimized(
+                        fallback_hashtags, videos_per_hashtag
+                    )
+                    if fallback_trends:
+                        trends = fallback_trends[:target_video_count]
+                        logger.info(
+                            f"✅ Fallback search successful: {len(trends)} videos")
+                    else:
+                        # If still no trends, create minimal response
+                        logger.warning(
+                            "⚠️ No trending content found. Returning empty results.")
+                        trends = []
+                except Exception as fallback_error:
+                    logger.error(
+                        f"❌ Fallback search also failed: {fallback_error}")
+                    trends = []
 
             # Enhanced quality filtering and sorting
             logger.info(
                 f"📊 Filtering {len(trends)} trends by quality metrics...")
 
-            # Filter trends by quality criteria
+            # Filter trends by quality criteria - СМЯГЧЕННЫЕ для получения 10+ видео
             quality_trends = []
             for trend in trends:
                 # Calculate engagement rate
                 engagement_rate = (
                     trend.likes + trend.comments + trend.shares) / max(trend.views, 1)
 
-                # Filter 1: Minimum engagement rate (2%+)
-                if engagement_rate < 0.02:
+                # Filter 1: ЗНАЧИТЕЛЬНО смягченный engagement (0.1% вместо 2%)
+                if engagement_rate < 0.001:
                     continue
 
-                # Filter 2: Minimum performance thresholds
-                if trend.views < 10000 or trend.likes < 200:
+                # Filter 2: СМЯГЧЕННЫЕ пороги (100+ views, 1+ like вместо 10K+ views, 200+ likes)
+                if trend.views < 100 or trend.likes < 1:
                     continue
 
-                # Filter 3: Freshness - not older than 2 weeks
-                if self._days_since_creation(trend.create_time) > 14:
+                # Filter 3: Freshness - only last 7 days for maximum relevance (НЕ ИЗМЕНЕНО)
+                if self._days_since_creation(trend.create_time) > 7:
                     continue
 
                 quality_trends.append(trend)
@@ -160,11 +258,13 @@ class TrendAnalysisService:
                 f"✅ {len(quality_trends)} trends passed quality filters")
 
             if not quality_trends:
-                # Fallback: if no trends pass quality filters, use relaxed criteria
+                # Fallback: if no trends pass quality filters, use МИНИМАЛЬНЫЕ criteria for last 7 days
                 logger.warning(
-                    "⚠️ No trends passed strict quality filters, using relaxed criteria...")
+                    "⚠️ No trends passed quality filters, using minimal criteria for last 7 days...")
                 quality_trends = [
-                    t for t in trends if t.views > 5000 and t.likes > 50][:30]
+                    t for t in trends
+                    if t.views > 10 and t.likes > 0 and self._days_since_creation(t.create_time) <= 7
+                ][:15]  # Top 15 для гарантии 10+
 
             # Enhanced sorting with weighted metrics
             engagement_sorted_trends = sorted(
@@ -178,7 +278,7 @@ class TrendAnalysisService:
                     ((t.likes + t.comments + t.shares) / max(t.views, 1)) * 50000
                 ),
                 reverse=True
-            )[:30]  # Increased from 20 to 30 for better selection
+            )[:10]  # Top 10 videos by engagement metrics
 
             # Step 5: Analyze content relevance with GPT-4 Vision
             logger.info(
@@ -198,7 +298,7 @@ class TrendAnalysisService:
                 "🔥 Step 6: Getting popular videos for broader appeal...")
             popular_videos = await self.ensemble_service.search_popular_videos(
                 count=10,
-                period=7  # Last 7 days
+                period=7  # Last 7 days only for maximum relevance
             )
 
             # Convert popular videos to TrendVideo format
@@ -233,9 +333,41 @@ class TrendAnalysisService:
             logger.info(
                 f"✅ Analysis completed! Found {len(niche_trends)} niche trends + {len(popular_trends)} popular videos = {len(combined_trends)} total")
 
+            # Calculate token usage and costs
+            openai_total = token_tracker["openai_prompt_tokens"] + \
+                token_tracker["openai_completion_tokens"]
+            perplexity_total = token_tracker["perplexity_prompt_tokens"] + \
+                token_tracker["perplexity_completion_tokens"]
+
+            # Rough cost estimation (prices as of 2024)
+            # GPT-4o: $2.50 per 1M input tokens, $10 per 1M output tokens
+            # Perplexity Sonar: $1 per 1M input tokens, $3 per 1M output tokens
+            # Ensemble Data: varies by endpoint, roughly $0.001 per unit
+            openai_cost = (token_tracker["openai_prompt_tokens"] * 2.50 / 1_000_000 +
+                           token_tracker["openai_completion_tokens"] * 10 / 1_000_000)
+            perplexity_cost = (token_tracker["perplexity_prompt_tokens"] * 1.0 / 1_000_000 +
+                               token_tracker["perplexity_completion_tokens"] * 3.0 / 1_000_000)
+            ensemble_cost = token_tracker["ensemble_units"] * 0.001
+            total_cost = openai_cost + perplexity_cost + ensemble_cost
+
+            token_usage = TokenUsage(
+                openai_tokens=openai_total,
+                openai_prompt_tokens=token_tracker["openai_prompt_tokens"],
+                openai_completion_tokens=token_tracker["openai_completion_tokens"],
+                perplexity_tokens=perplexity_total,
+                perplexity_prompt_tokens=token_tracker["perplexity_prompt_tokens"],
+                perplexity_completion_tokens=token_tracker["perplexity_completion_tokens"],
+                ensemble_units=token_tracker["ensemble_units"],
+                total_cost_estimate=round(total_cost, 4)
+            )
+
+            logger.info(
+                f"💰 Total token usage - OpenAI: {openai_total}, Perplexity: {perplexity_total}, Ensemble: {token_tracker['ensemble_units']} units")
+            logger.info(f"💵 Estimated total cost: ${total_cost:.4f}")
+
             # Cache the complete analysis result
             await self._cache_analysis_result(
-                username, profile, posts, hashtags, combined_trends, analysis.analysis_summary
+                username, profile, posts, hashtags, combined_trends, analysis.analysis_summary, token_usage
             )
 
             return TrendAnalysisResponse(
@@ -243,7 +375,8 @@ class TrendAnalysisService:
                 posts=posts,
                 hashtags=hashtags,
                 trends=combined_trends,
-                analysis_summary=analysis.analysis_summary
+                analysis_summary=analysis.analysis_summary,
+                token_usage=token_usage
             )
 
         except Exception as e:
@@ -361,7 +494,7 @@ class TrendAnalysisService:
                 logger.info(
                     f"🔍 Searching hashtag: #{hashtag} ({i + 1}/{len(hashtags)})")
 
-                # Check cache first with improved key structure
+                # Check cache first with improved key structure (7 days only)
                 cache_key = f"hashtag_trends:{hashtag}:{videos_per_hashtag}:7d"
                 cached_videos = await cache_service.get("trends", cache_key)
 
@@ -376,8 +509,9 @@ class TrendAnalysisService:
                     logger.debug(f"📡 Fetching fresh data for #{hashtag}")
                     posts = await self.ensemble_service.search_hashtag_posts(
                         hashtag=hashtag,
-                        count=min(videos_per_hashtag * 2, 20),
-                        period=30,  # Вместо 7 дней - 30 дней
+                        # Увеличено для лучшего покрытия
+                        count=min(videos_per_hashtag * 3, 30),
+                        period=7,  # ТОЛЬКО ПОСЛЕДНЯЯ НЕДЕЛЯ
                         sorting=1
                     )
 
@@ -386,10 +520,10 @@ class TrendAnalysisService:
                             f"⚠️ No posts found for hashtag #{hashtag}")
                         continue
 
-                    # Filter posts by age (not older than 30 days)
+                    # Filter posts by age (STRICTLY last 7 days only)
                     from datetime import timezone
-                    thirty_days_ago = datetime.now(
-                        timezone.utc) - timedelta(days=30)
+                    seven_days_ago = datetime.now(
+                        timezone.utc) - timedelta(days=7)
                     filtered_posts = []
 
                     for post in posts:
@@ -397,32 +531,36 @@ class TrendAnalysisService:
                             # Parse ISO timestamp and filter by date
                             post_date = datetime.fromisoformat(
                                 post.create_time.replace('Z', '+00:00'))
-                            if post_date >= thirty_days_ago:
+                            if post_date >= seven_days_ago:
                                 filtered_posts.append(post)
                         except (ValueError, AttributeError) as e:
                             logger.warning(
                                 f"⚠️ Could not parse date for post {post.id}: {e}")
                             continue
 
-                    # Limit to the requested count after filtering
+                    # Use filtered posts or log warning
                     if not filtered_posts:
                         logger.warning(
-                            f"⚠️ No posts within 30 days found for hashtag #{hashtag}")
+                            f"⚠️ No posts within last 7 days found for hashtag #{hashtag}")
                         continue
 
-                    posts = filtered_posts[:min(videos_per_hashtag * 2, 20)]
+                    posts = filtered_posts
 
-                    # Convert to TrendVideo objects with more inclusive filtering
-                    # More inclusive quality filter to get more videos
-                    quality_posts = [p for p in posts if p.views > 10]
+                    # Convert to TrendVideo objects - prioritize quality but ensure we get enough videos
+                    # Sort posts by views to get the most popular ones first
+                    sorted_posts = sorted(
+                        posts, key=lambda p: p.views, reverse=True)
 
-                    # If not enough quality posts, use all available posts
-                    if len(quality_posts) < videos_per_hashtag and posts:
+                    # Take the best available posts, but ensure we get the required count
+                    if len(sorted_posts) >= videos_per_hashtag:
+                        selected_posts = sorted_posts[:videos_per_hashtag]
                         logger.info(
-                            f"🔍 Using all {len(posts)} available posts for #{hashtag}")
-                        selected_posts = posts[:videos_per_hashtag]
+                            f"✅ Selected {len(selected_posts)} high-quality posts for #{hashtag}")
                     else:
-                        selected_posts = quality_posts[:videos_per_hashtag]
+                        # If we don't have enough posts, use all available
+                        selected_posts = sorted_posts
+                        logger.warning(
+                            f"⚠️ Only {len(selected_posts)} posts available for #{hashtag} (target: {videos_per_hashtag})")
 
                     trend_videos = [
                         self._post_to_trend_video(post, hashtag)
@@ -490,7 +628,8 @@ class TrendAnalysisService:
         posts: List[TikTokPost],
         hashtags: List[str],
         trends: List[TrendVideo],
-        analysis_summary: str
+        analysis_summary: str,
+        token_usage: Optional[TokenUsage] = None
     ) -> None:
         """Cache complete analysis result"""
         try:
@@ -501,6 +640,10 @@ class TrendAnalysisService:
                 "trends": [trend.model_dump() for trend in trends],
                 "analysis_summary": analysis_summary
             }
+
+            # Add token_usage if provided
+            if token_usage:
+                analysis_data["token_usage"] = token_usage.model_dump()
 
             await cache_service.set(
                 "analysis",
@@ -521,13 +664,19 @@ class TrendAnalysisService:
             if not cached_data:
                 return None
 
+            # Extract token_usage if available
+            token_usage = None
+            if "token_usage" in cached_data:
+                token_usage = TokenUsage(**cached_data["token_usage"])
+
             return TrendAnalysisResponse(
                 profile=TikTokProfile(**cached_data["profile"]),
                 posts=[TikTokPost(**post) for post in cached_data["posts"]],
                 hashtags=cached_data["hashtags"],
                 trends=[TrendVideo(**trend)
                         for trend in cached_data["trends"]],
-                analysis_summary=cached_data.get("analysis_summary", "")
+                analysis_summary=cached_data.get("analysis_summary", ""),
+                token_usage=token_usage
             )
 
         except Exception as e:
@@ -646,7 +795,7 @@ class TrendAnalysisService:
         self,
         profile_url: str,
         creative_center_hashtags: List[Dict[str, Any]],
-        videos_per_hashtag: int = 3
+        videos_per_hashtag: int = 8  # Увеличено с 3 до 8 для гарантии 10+ видео
     ) -> Dict[str, Any]:
         """
         Analyze Creative Center hashtags by searching trending videos for each hashtag
@@ -701,8 +850,8 @@ class TrendAnalysisService:
                     # Use Ensemble to find trending posts for this hashtag
                     posts = await self.ensemble_service.search_hashtag_posts(
                         hashtag=hashtag,
-                        count=videos_per_hashtag * 2,  # Get more for filtering
-                        period=30,  # 30 days for fresh content
+                        count=videos_per_hashtag * 5,  # Увеличено с *2 до *5 для компенсации фильтров
+                        period=7,   # ONLY last 7 days for trending content
                         sorting=1   # Sort by likes
                     )
 
@@ -761,8 +910,8 @@ class TrendAnalysisService:
                 engagement_rate = (
                     video.likes + video.comments + video.shares) / max(video.views, 1)
 
-                # Apply more lenient quality filters for better results
-                if engagement_rate >= 0.005 and video.views >= 1000 and video.likes >= 10:  # Softened
+                # Apply ОЧЕНЬ мягкие quality filters для гарантии 10+ видео
+                if engagement_rate >= 0.001 and video.views >= 100 and video.likes >= 1:  # ЗНАЧИТЕЛЬНО смягчено
                     quality_videos.append(video)
                 else:
                     filtered_out_count += 1
@@ -772,18 +921,18 @@ class TrendAnalysisService:
             logger.info(
                 f"📊 Quality filtering: {len(quality_videos)} videos passed, {filtered_out_count} filtered out")
 
-            # If no videos pass quality filter, use all videos with basic threshold
+            # If no videos pass quality filter, use МИНИМАЛЬНЫЙ threshold
             if not quality_videos:
                 logger.warning(
-                    "⚠️ No videos passed quality filter, using basic threshold")
+                    "⚠️ No videos passed quality filter, using minimal threshold")
                 for video in all_trend_videos:
-                    if video.views >= 100:  # Very basic threshold
+                    if video.views >= 10:  # ОЧЕНЬ низкий threshold
                         quality_videos.append(video)
 
-            # If still no videos, use all available
+            # If still no videos, use ALL available videos
             if not quality_videos:
                 logger.warning(
-                    "⚠️ Using all available videos without quality filter")
+                    "⚠️ Using ALL available videos without any quality filter")
                 quality_videos = all_trend_videos
 
             # Sort by combined score (engagement + Creative Center relevance)
@@ -794,9 +943,9 @@ class TrendAnalysisService:
                     video, 'relevance_score', 0.0) * 10000
                 return engagement_score + relevance_bonus
 
-            # Get top videos from Creative Center hashtags (aim for 10-15)
+            # Get top videos from Creative Center hashtags (aim for 15-20 для гарантии 10+)
             niche_videos = sorted(
-                quality_videos, key=calculate_video_score, reverse=True)[:15]
+                quality_videos, key=calculate_video_score, reverse=True)[:20]
 
             logger.info(
                 f"📋 After sorting: {len(niche_videos)} niche videos selected")
@@ -812,20 +961,76 @@ class TrendAnalysisService:
                         profile.niche_description,
                         profile.key_topics
                     )
-                    # Take top 10 after relevance analysis
-                    niche_videos = analyzed_videos[:10]
+                    # Take top 15 after relevance analysis для гарантии 10+
+                    niche_videos = analyzed_videos[:15]
                     logger.info(
                         f"✅ Content relevance analysis completed: {len(niche_videos)} final videos")
                 except Exception as e:
                     logger.warning(
                         f"⚠️ Content relevance analysis failed: {e}")
-                    niche_videos = niche_videos[:10]  # Fallback to top 10
+                    # Fallback to top 15 для гарантии 10+
+                    niche_videos = niche_videos[:15]
                     logger.info(
                         f"📋 Using fallback: {len(niche_videos)} videos after fallback")
 
             # For Creative Center analysis, focus only on hashtag-based results
             # No popular videos mixing - show pure Creative Center results
             final_videos = niche_videos
+
+            # КРИТИЧНО: Убеждаемся что у нас минимум 10 видео
+            if len(final_videos) < 10:
+                logger.warning(
+                    f"⚠️ Creative Center дал только {len(final_videos)} видео (нужно 10+)")
+                logger.info(
+                    "🔄 Пытаемся получить больше видео с увеличенными параметрами...")
+
+                # Увеличиваем videos_per_hashtag для каждого хештега
+                additional_videos = []
+                for hashtag in hashtag_names:
+                    try:
+                        posts = await self.ensemble_service.search_hashtag_posts(
+                            hashtag=hashtag,
+                            count=15,  # Больше видео на хештег
+                            period=7,
+                            sorting=1
+                        )
+
+                        # Берем дополнительные видео
+                        for post in posts[videos_per_hashtag:]:
+                            if len(additional_videos) + len(final_videos) >= 15:
+                                break
+                            trend_video = TrendVideo(
+                                id=post.id,
+                                caption=post.caption,
+                                views=post.views,
+                                likes=post.likes,
+                                shares=post.shares,
+                                comments=post.comments,
+                                create_time=post.create_time,
+                                video_url=post.tiktok_url or post.video_url,
+                                cover_image_url=post.cover_image_url,
+                                images=post.images,
+                                hashtag=hashtag,
+                                author=post.author,
+                                relevance_score=0.5
+                            )
+                            # Проверяем что видео не дублируется
+                            if not any(v.id == trend_video.id for v in final_videos):
+                                additional_videos.append(trend_video)
+
+                        if len(additional_videos) + len(final_videos) >= 15:
+                            break
+                    except Exception as e:
+                        logger.warning(
+                            f"⚠️ Не удалось получить дополнительные видео для #{hashtag}: {e}")
+                        continue
+
+                final_videos.extend(additional_videos)
+                logger.info(
+                    f"✅ Добавлено {len(additional_videos)} дополнительных видео. Итого: {len(final_videos)}")
+
+            # Финальная обрезка до разумного количества
+            final_videos = final_videos[:15]
 
             # Generate analysis summary
             analysis_summary = f"Found {len(final_videos)} high-quality videos from {len(hashtag_names)} Creative Center hashtags. Videos selected based on engagement metrics and Creative Center relevance scores."

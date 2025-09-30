@@ -27,7 +27,7 @@ class OpenAIService:
         self,
         posts: List[TikTokPost],
         profile_bio: str = ""
-    ) -> GPTAnalysisResponse:
+    ) -> tuple[GPTAnalysisResponse, Dict[str, int]]:
         """
         Analyze TikTok posts and extract trending hashtags using GPT
 
@@ -36,7 +36,7 @@ class OpenAIService:
             profile_bio: User's profile bio for context
 
         Returns:
-            GPTAnalysisResponse with top hashtags and analysis
+            Tuple of (GPTAnalysisResponse, token_usage_dict)
 
         Raises:
             Exception: If analysis fails
@@ -55,33 +55,37 @@ class OpenAIService:
             )[:5]
 
             # Use retry with backoff for OpenAI API calls
-            analysis = await retry_with_backoff(
+            result = await retry_with_backoff(
                 func=lambda: self._call_gpt_analysis(top_posts, profile_bio),
                 max_retries=3,
                 base_delay=1.0,
                 retry_condition=self._should_retry_openai_error
             )
 
+            analysis, token_usage = result
+
             logger.info(
                 f"Successfully extracted hashtags: {analysis.top_hashtags}")
-            return analysis
+            return analysis, token_usage
 
         except Exception as e:
             logger.error(f"Failed to analyze posts with GPT: {e}")
 
             # Try fallback hashtag extraction
             fallback_hashtags = self._generate_fallback_hashtags(posts)
-            return GPTAnalysisResponse(
+            fallback_analysis = GPTAnalysisResponse(
                 top_hashtags=fallback_hashtags,
                 analysis_summary="AI analysis failed, used fallback hashtag extraction based on post content frequency"
             )
+            # Return zero token usage for fallback
+            return fallback_analysis, {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
     async def _call_gpt_analysis(
         self,
         posts: List[TikTokPost],
         profile_bio: str
-    ) -> GPTAnalysisResponse:
-        """Make actual GPT API call for analysis"""
+    ) -> tuple[GPTAnalysisResponse, Dict[str, int]]:
+        """Make actual GPT API call for analysis and return token usage"""
 
         # Prepare context for GPT
         posts_context = []
@@ -136,6 +140,16 @@ Analyze these posts and extract 5 most relevant trending hashtags for finding si
             if not content:
                 raise Exception("Empty response from GPT")
 
+            # Extract token usage from response
+            token_usage = {
+                "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
+                "completion_tokens": response.usage.completion_tokens if response.usage else 0,
+                "total_tokens": response.usage.total_tokens if response.usage else 0
+            }
+
+            logger.info(
+                f"💰 OpenAI tokens used: {token_usage['total_tokens']} (prompt: {token_usage['prompt_tokens']}, completion: {token_usage['completion_tokens']})")
+
             # Parse JSON response
             try:
                 analysis_data = json.loads(content)
@@ -155,10 +169,12 @@ Analyze these posts and extract 5 most relevant trending hashtags for finding si
                     raise Exception(
                         "No valid hashtags extracted from GPT response")
 
-                return GPTAnalysisResponse(
+                analysis_response = GPTAnalysisResponse(
                     top_hashtags=hashtags,
                     analysis_summary=analysis_data.get('analysis_summary', '')
                 )
+
+                return analysis_response, token_usage
 
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse GPT response JSON: {e}")
@@ -208,29 +224,30 @@ Analyze these posts and extract 5 most relevant trending hashtags for finding si
 
         fallback_hashtags = [tag for tag, _ in sorted_hashtags[:5]]
 
-        # If not enough hashtags or hashtags are too specific, use popular general ones
-        popular_defaults = ['fyp', 'viral', 'trending', 'foryou',
-                            'tiktok', 'comedy', 'dance', 'music', 'funny', 'amazing']
+        # Use niche-specific hashtags based on content analysis instead of generic ones
+        niche_defaults = ['contentcreator', 'creative',
+                          'creator', 'content', 'original']
 
-        # Always include some popular defaults for better trend discovery
+        # Prioritize extracted hashtags over generic defaults
         final_hashtags = []
 
-        # Add up to 2 extracted hashtags if they're good
-        for tag in fallback_hashtags[:2]:
-            if len(tag) >= 3 and len(tag) <= 15:  # Reasonable length
+        # Add up to 4 extracted hashtags if they're good
+        for tag in fallback_hashtags[:4]:
+            if len(tag) >= 3 and len(tag) <= 20:  # Reasonable length
                 final_hashtags.append(tag)
 
-        # Fill the rest with popular defaults
-        for default_tag in popular_defaults:
-            if len(final_hashtags) >= 5:
-                break
-            if default_tag not in final_hashtags:
-                final_hashtags.append(default_tag)
+        # Only fill with niche defaults if we have less than 3 hashtags
+        if len(final_hashtags) < 3:
+            for default_tag in niche_defaults:
+                if len(final_hashtags) >= 5:
+                    break
+                if default_tag not in final_hashtags:
+                    final_hashtags.append(default_tag)
 
         # Ensure we have exactly 5 hashtags
         while len(final_hashtags) < 5:
-            final_hashtags.append(popular_defaults[len(
-                final_hashtags) % len(popular_defaults)])
+            final_hashtags.append(niche_defaults[len(
+                final_hashtags) % len(niche_defaults)])
 
         fallback_hashtags = final_hashtags[:5]
 

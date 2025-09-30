@@ -97,6 +97,26 @@ class TrendAnalysisRequest(BaseModel):
     profile_url: str = Field(..., description="TikTok profile URL or username")
 
 
+class TokenUsage(BaseModel):
+    """Token usage statistics for API calls"""
+    openai_tokens: int = Field(
+        default=0, description="Total OpenAI tokens used")
+    openai_prompt_tokens: int = Field(
+        default=0, description="OpenAI prompt tokens")
+    openai_completion_tokens: int = Field(
+        default=0, description="OpenAI completion tokens")
+    perplexity_tokens: int = Field(
+        default=0, description="Total Perplexity tokens used")
+    perplexity_prompt_tokens: int = Field(
+        default=0, description="Perplexity prompt tokens")
+    perplexity_completion_tokens: int = Field(
+        default=0, description="Perplexity completion tokens")
+    ensemble_units: int = Field(
+        default=0, description="Ensemble Data units charged")
+    total_cost_estimate: float = Field(
+        default=0.0, description="Estimated total cost in USD")
+
+
 class TrendAnalysisResponse(BaseModel):
     """Complete trend analysis response"""
     profile: TikTokProfile
@@ -104,6 +124,8 @@ class TrendAnalysisResponse(BaseModel):
     hashtags: List[str]
     trends: List[TrendVideo]
     analysis_summary: str = ""
+    token_usage: Optional[TokenUsage] = Field(
+        default=None, description="API token usage statistics")
 
 
 class ErrorResponse(BaseModel):

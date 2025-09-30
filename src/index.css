@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbar for Apple-like design */
+/* Custom scrollbar for minimalistic design */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -12,12 +12,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2a2a30;
+  background: #e0e0e0;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3a3a40;
+  background: #666666;
 }
 
 /* Smooth transitions for all interactive elements */
@@ -27,7 +27,7 @@
 
 /* Focus styles for accessibility */
 *:focus {
-  outline: 2px solid #0000ff;
+  outline: 2px solid #000000;
   outline-offset: 2px;
 }
 
@@ -39,14 +39,29 @@
 /* Custom utility classes */
 @layer components {
   .btn-primary {
-    @apply bg-transparent text-white px-6 py-3 rounded-btn font-medium border border-white/20
-           hover:bg-white hover:text-black 
-           focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-primary-bg
+    @apply bg-white text-black px-6 py-3 rounded font-medium border border-border
+           hover:bg-secondary hover:border-muted-foreground
+           focus:ring-2 focus:ring-black focus:ring-offset-2 focus:ring-offset-white
+           transition-all duration-150 ease-out;
+  }
+
+  .btn-accent {
+    @apply bg-black text-white px-6 py-3 rounded font-medium border border-black
+           hover:bg-muted-foreground hover:border-muted-foreground
+           focus:ring-2 focus:ring-black focus:ring-offset-2 focus:ring-offset-white
            transition-all duration-150 ease-out;
   }
 
   .card {
-    @apply bg-primary-card p-8 rounded-card border border-primary-line;
+    @apply bg-white p-6 rounded border border-border shadow-sm;
+  }
+
+  .tag {
+    @apply bg-muted text-muted-foreground px-3 py-1 rounded-full text-sm;
+  }
+
+  .tag-active {
+    @apply bg-black text-white px-3 py-1 rounded-full text-sm;
   }
 
   .section-spacing {
@@ -60,31 +75,53 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
+    /* Primary colors - основной белый фон с черным текстом */
+    --background: 0 0% 100%; /* #FFFFFF */
+    --foreground: 0 0% 0%; /* #000000 */
+    --card: 0 0% 100%; /* #FFFFFF */
+    --card-foreground: 0 0% 0%; /* #000000 */
+    --popover: 0 0% 100%; /* #FFFFFF */
+    --popover-foreground: 0 0% 0%; /* #000000 */
+
+    /* Accent colors - темные акценты с белым текстом */
+    --primary: 0 0% 0%; /* #000000 */
+    --primary-foreground: 0 0% 100%; /* #FFFFFF */
+    --accent: 0 0% 0%; /* #000000 */
+    --accent-foreground: 0 0% 100%; /* #FFFFFF */
+
+    /* Secondary colors - светло-серый фон для контента */
+    --secondary: 0 0% 97%; /* #F8F8F8 */
+    --secondary-foreground: 0 0% 20%; /* #333333 */
+
+    /* Content colors - вспомогательный текст и элементы */
+    --muted: 0 0% 94%; /* #F0F0F0 для тегов */
+    --muted-foreground: 0 0% 60%; /* #999999 для placeholder */
+
+    /* Interactive elements - границы и поля */
+    --border: 0 0% 90%; /* #E5E5E5 */
+    --input: 0 0% 90%; /* #E5E5E5 */
+    --ring: 0 0% 0%; /* #000000 */
+
+    /* Content text variations */
+    --subtitle: 0 0% 40%; /* #666666 для подзаголовков */
+    --placeholder: 0 0% 60%; /* #999999 для placeholder */
+
+    /* Button states */
+    --button-hover: 0 0% 96%; /* #F5F5F5 */
+    --button-border: 0 0% 90%; /* #E5E5E5 */
+
+    /* Navigation */
+    --nav-hover: 0 0% 40%; /* #666666 для hover состояний */
+
+    /* Utility colors */
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
+    --chart-1: 0 0% 20%;
+    --chart-2: 0 0% 30%;
+    --chart-3: 0 0% 40%;
+    --chart-4: 0 0% 50%;
+    --chart-5: 0 0% 60%;
+    --radius: 0.25rem;
   }
   .dark {
     --background: 0 0% 3.9%;
@@ -121,4 +158,160 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Enhanced Progress Loading Animations */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes wave {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  50% {
+    transform: translateY(-10px);
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+}
+
+@keyframes progress-fill {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: var(--progress-width);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Progress Stage Transitions */
+.progress-stage-enter {
+  transform: translateX(-50px);
+  opacity: 0;
+}
+
+.progress-stage-enter-active {
+  transform: translateX(0);
+  opacity: 1;
+  transition: all 0.5s ease-out;
+}
+
+.progress-stage-active {
+  animation: breathe 2s ease-in-out infinite;
+}
+
+/* Gradient Progress Bar */
+.gradient-progress {
+  background: linear-gradient(45deg, #3b82f6, #8b5cf6, #06b6d4, #10b981);
+  background-size: 400% 400%;
+  animation: gradientShift 3s ease infinite;
+}
+
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Shimmer Effect for Loading */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.6) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: shimmer 2s linear infinite;
+}
+
+/* Activity Indicators */
+.activity-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.activity-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  animation: wave 1.4s ease-in-out infinite both;
+}
+
+.activity-dot:nth-child(2) {
+  animation-delay: 0.16s;
+}
+.activity-dot:nth-child(3) {
+  animation-delay: 0.32s;
+}
+.activity-dot:nth-child(4) {
+  animation-delay: 0.48s;
+}
+
+/* Animation utilities */
+.animate-fade-in {
+  animation: fadeIn 0.6s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.6s ease-out forwards;
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }

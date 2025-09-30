@@ -73,15 +73,38 @@ class AdvancedCreativeCenterService:
             f"🚀 Starting advanced Creative Center navigation for niche: {niche}")
 
         try:
-            # Шаг 1: Определение географии
+            # Шаг 1: Определение географии TikTok аккаунта через Perplexity
             if auto_detect_geo and profile_data:
-                detected_country = creative_center_mapping.detect_user_geo_from_profile(
-                    profile_data)
-                actual_country = detected_country
-                logger.info(f"🌍 Auto-detected geography: {actual_country}")
+                logger.info(
+                    "🌍 Analyzing TikTok account origin with Perplexity...")
+
+                # Import perplexity service for account origin analysis
+                from .perplexity_service import perplexity_service
+
+                # Extract data for analysis
+                username = profile_data.get("username", "")
+                bio = profile_data.get("bio", "")
+                recent_captions = profile_data.get("recent_captions", [])
+                follower_count = profile_data.get("follower_count", 0)
+                video_count = profile_data.get("video_count", 0)
+
+                # Analyze account origin
+                account_origin = await perplexity_service.analyze_tiktok_account_origin(
+                    username=username,
+                    bio=bio,
+                    recent_posts_content=recent_captions,
+                    follower_count=follower_count,
+                    video_count=video_count
+                )
+
+                actual_country = account_origin["country_code"]
+                actual_language = account_origin["language"]
+                logger.info(
+                    f"🌍 Auto-detected TikTok account origin: {account_origin['country']} ({account_origin['confidence']} confidence)")
             else:
                 actual_country = creative_center_mapping.get_country_code(
                     country)
+                actual_language = language
                 logger.info(f"🌍 Using specified geography: {actual_country}")
 
             # Шаг 2: Маппинг ниши к категории Creative Center
@@ -93,7 +116,7 @@ class AdvancedCreativeCenterService:
             navigation_prompt = self._create_step_by_step_prompt(
                 niche=niche,
                 country=actual_country,
-                language=language,
+                language=actual_language,
                 category=category,
                 target_limit=limit
             )

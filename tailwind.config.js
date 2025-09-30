@@ -24,18 +24,47 @@ export default {
 			]
 		},
   		colors: {
+  			// Main color scheme following the monochromatic approach
   			primary: {
-  				bg: '#0B0B0F',
-  				card: '#1A1A1F',
-  				line: '#2A2A30',
-  				accent: '#0000ff',
-  				'accent-hover': '#2F6FFF',
+  				bg: '#FFFFFF',              // white background
+  				card: '#FFFFFF',            // white cards
+  				line: '#E5E5E5',            // light borders
+  				accent: '#000000',          // black accents
+  				'accent-hover': '#666666',   // gray hover state
+  				surface: '#F8F8F8',         // secondary light gray background
   				DEFAULT: 'hsl(var(--primary))',
   				foreground: 'hsl(var(--primary-foreground))'
   			},
+  			// Text colors for different hierarchy levels
   			text: {
-  				primary: '#FFFFFF',
-  				secondary: '#A1A1AA'
+  				primary: '#000000',         // main black text
+  				secondary: '#666666',       // subtitle gray
+  				placeholder: '#999999'      // placeholder text
+  			},
+  			// Interactive elements
+  			interactive: {
+  				bg: '#FFFFFF',              // button background
+  				border: '#E5E5E5',          // button border
+  				hover: '#F5F5F5',           // button hover
+  				text: '#000000'             // button text
+  			},
+  			// Navigation colors
+  			nav: {
+  				bg: '#FFFFFF',              // navigation background
+  				text: '#000000',            // navigation text
+  				hover: '#666666'            // navigation hover
+  			},
+  			// Content utilities
+  			content: {
+  				border: '#E0E0E0',          // content borders
+  				subtitle: '#666666',        // subtitle text
+  				placeholder: '#999999'      // placeholder text
+  			},
+  			// Tags and categories
+  			tags: {
+  				bg: '#F0F0F0',              // tag background
+  				text: '#666666',            // tag text
+  				active: '#000000'           // active tag
   			},
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
@@ -78,13 +107,14 @@ export default {
   			'6': '24px',
   			'16': '64px'
   		},
-  		borderRadius: {
-  			card: '16px',
-  			btn: '8px',
-  			lg: 'var(--radius)',
-  			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
-  		},
+			borderRadius: {
+				card: '16px',               // cards and containers
+				btn: '8px',                // buttons
+				tag: '9999px',             // tags (fully rounded)
+				lg: 'var(--radius)',
+				md: 'calc(var(--radius) - 2px)',
+				sm: 'calc(var(--radius) - 4px)'
+			},
   		boxShadow: {
   			accent: '0 0 8px rgba(58, 124, 255, 0.3)'
   		},
@@ -92,7 +122,9 @@ export default {
 			'fade-in': 'fadeIn 300ms ease-out',
 			'slide-up': 'slideUp 400ms ease-out',
 			'pulse-slow': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-			'gradient': 'gradient 8s linear infinite'
+			'gradient': 'gradient 8s linear infinite',
+			'float': 'float 3s ease-in-out infinite',
+			'bounce-subtle': 'bounceSubtle 2s ease-in-out infinite'
 		},
 		keyframes: {
 			fadeIn: {
@@ -119,6 +151,14 @@ export default {
 				'0%': { backgroundPosition: '0% 50%' },
 				'50%': { backgroundPosition: '100% 50%' },
 				'100%': { backgroundPosition: '0% 50%' }
+			},
+			float: {
+				'0%, 100%': { transform: 'translateY(0px)' },
+				'50%': { transform: 'translateY(-10px)' }
+			},
+			bounceSubtle: {
+				'0%, 100%': { transform: 'translateY(0px)' },
+				'50%': { transform: 'translateY(-4px)' }
 			}
 		}
   	}

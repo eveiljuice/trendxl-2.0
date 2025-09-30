@@ -170,17 +170,17 @@ const TrendCard: React.FC<TrendCardProps> = ({ trend, onClick }) => {
   return (
     <div 
       className="
-        card cursor-pointer group h-full flex flex-col
-        hover:border-primary-accent/30 hover:shadow-lg hover:shadow-primary-accent/5
+        bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 cursor-pointer group h-full flex flex-col
+        hover:border-gray-300 hover:shadow-2xl 
         hover:scale-[1.02] active:scale-[0.98]
         transition-all duration-300 ease-out
-        animate-fade-in
+        animate-fade-in overflow-hidden
       "
       onClick={handleClick}
     >
-      {/* Video Thumbnail */}
-      <div className="relative mb-4 overflow-hidden rounded-card">
-        <div className="aspect-[9/16] max-h-64 bg-secondary relative">
+      {/* Video Thumbnail - адаптивная высота */}
+      <div className="relative overflow-hidden">
+        <div className="aspect-[9/16] max-h-64 sm:max-h-72 md:max-h-80 bg-gray-100 relative">
           {currentImageSrc && !imageError ? (
             <>
               {/* Loading skeleton */}
@@ -236,9 +236,9 @@ const TrendCard: React.FC<TrendCardProps> = ({ trend, onClick }) => {
               />
             </>
           ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-primary-surface to-primary-line">
-              <Play className="w-12 h-12 text-text-secondary mb-2" />
-              <span className="text-xs text-text-secondary text-center px-2">
+            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+              <Play className="w-12 h-12 text-gray-400 mb-2" />
+              <span className="text-xs text-gray-500 text-center px-2">
                 {!currentImageSrc ? 'No image available' :
                  imageError ? 'Preview unavailable' : 
                  retryCount > 0 ? `Loading... (${retryCount + 1}/6)` : 
@@ -255,18 +255,18 @@ const TrendCard: React.FC<TrendCardProps> = ({ trend, onClick }) => {
             </div>
           )}
 
-          {/* Multi-Image Navigation Dots */}
+          {/* Multi-Image Navigation Dots - адаптивные размеры */}
           {hasMultipleImages && (
-            <div className="absolute top-3 right-3 flex space-x-1">
+            <div className="absolute bottom-2 sm:bottom-3 right-2 sm:right-3 flex space-x-1 z-10">
               {allImages.map((_, index) => (
                 <button
                   key={index}
                   onClick={(e) => handleImageChange(index, e)}
                   className={`
-                    w-2 h-2 rounded-full transition-all duration-200
+                    w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full transition-all duration-200
                     ${index === selectedImageIndex 
-                      ? 'bg-white scale-125 shadow-lg' 
-                      : 'bg-white/50 hover:bg-white/80'
+                      ? 'bg-white/90 scale-125 shadow-sm' 
+                      : 'bg-white/40 hover:bg-white/70'
                     }
                   `}
                   aria-label={`View image ${index + 1}`}
@@ -275,61 +275,34 @@ const TrendCard: React.FC<TrendCardProps> = ({ trend, onClick }) => {
             </div>
           )}
 
-          {/* Top Row - Left: Image Counter or Relevance Score */}
-          <div className="absolute top-3 left-3 z-20">
-            {hasMultipleImages ? (
-              <div className="bg-black/70 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm mb-2">
+          {/* Image Counter - адаптивные отступы */}
+          {hasMultipleImages && (
+            <div className="absolute top-2 sm:top-3 left-2 sm:left-3 z-10">
+              <div className="bg-black/50 text-white text-xs px-1.5 py-0.5 sm:px-2 sm:py-1 rounded backdrop-blur-sm">
                 {selectedImageIndex + 1}/{allImages.length}
               </div>
-            ) : null}
-            
-            {/* Relevance Score Badge */}
-            {trend.relevance_score && trend.relevance_score > 0 && (
-              <div className={`flex items-center space-x-1 px-2 py-1 rounded-full backdrop-blur-sm ${
-                trend.relevance_score >= 0.8 ? 'bg-green-500/90' :
-                trend.relevance_score >= 0.6 ? 'bg-yellow-500/90' :
-                trend.relevance_score >= 0.4 ? 'bg-orange-500/90' :
-                'bg-red-500/90'
-              }`}>
-                <Target className="w-3 h-3 text-white" />
-                <span className="text-white text-xs font-medium">
-                  {Math.round(trend.relevance_score * 100)}%
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Top Right - Hashtag Badge */}
-          <div className="absolute top-3 right-3 z-10">
-            <span className="
-              bg-primary-accent/90 backdrop-blur-sm text-white text-xs font-medium
-              px-3 py-1.5 rounded-full border border-white/20
-              shadow-lg
-            ">
-              #{trend.hashtag}
-            </span>
-          </div>
+            </div>
+          )}
           
-          {/* Play Button Overlay - Only show button, minimal background */}
+          {/* Play Button Overlay - адаптивные размеры */}
           {hasVideo && (
-            <div className="absolute inset-0 flex items-center justify-center">
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-all duration-200">
               <button
                 onClick={handleVideoPlay}
                 className="
-                  bg-black/60 backdrop-blur-md border border-white/30
-                  rounded-full p-4 
-                  hover:bg-black/80 hover:border-white/50
-                  hover:scale-110 active:scale-95
+                  bg-white/95 backdrop-blur-sm border-2 border-gray-200
+                  rounded-full p-3 sm:p-4 
+                  hover:bg-white hover:border-gray-300 hover:scale-110 active:scale-95
                   transition-all duration-200 ease-out
                   group/play
                   focus:outline-none focus:ring-2 focus:ring-white/50
-                  shadow-lg
+                  shadow-xl
                 "
                 aria-label="Play video in new tab"
-                title="Play video in new tab"
+                title="Click to open video in new tab"
               >
-                <Play 
-                  className="w-8 h-8 text-white ml-1 group-hover/play:text-white drop-shadow-sm" 
+                  <Play 
+                  className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-black ml-0.5 sm:ml-1 group-hover/play:text-black" 
                   fill="currentColor" 
                 />
               </button>
@@ -341,72 +314,63 @@ const TrendCard: React.FC<TrendCardProps> = ({ trend, onClick }) => {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="space-y-3 flex-1 flex flex-col">
-        {/* Caption */}
+      {/* Content - адаптивные отступы */}
+      <div className="space-y-2 sm:space-y-3 flex-1 flex flex-col p-3 sm:p-4 md:p-6">
+        {/* Caption - адаптивные размеры */}
         {trend.caption && (
-          <p className="text-text-primary text-sm leading-relaxed max-h-[60px] overflow-hidden">
+          <p className="text-black text-xs sm:text-sm leading-relaxed max-h-[50px] sm:max-h-[60px] overflow-hidden font-inter">
             {truncateText(trend.caption, 120)}
           </p>
         )}
 
-        {/* Stats */}
-        <div className="flex items-center justify-between text-text-secondary text-sm">
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-1">
-              <Eye className="w-4 h-4" />
-              <span>{formatNumber(trend.views)}</span>
+        {/* Hashtag - адаптивные размеры */}
+        <div className="flex items-center space-x-1.5 sm:space-x-2">
+          <span className="text-xs text-gray-500 hidden sm:inline">Found via:</span>
+          <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full">
+            #{trend.hashtag}
+          </span>
+        </div>
+
+        {/* Stats - адаптивные размеры */}
+        <div className="flex items-center justify-between text-gray-600 text-xs sm:text-sm">
+          <div className="flex items-center space-x-2 sm:space-x-3 md:space-x-4 flex-wrap">
+            <div className="flex items-center space-x-0.5 sm:space-x-1">
+              <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="text-xs sm:text-sm">{formatNumber(trend.views)}</span>
             </div>
-            <div className="flex items-center space-x-1">
-              <Heart className="w-4 h-4" />
-              <span>{formatNumber(trend.likes)}</span>
+            <div className="flex items-center space-x-0.5 sm:space-x-1">
+              <Heart className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="text-xs sm:text-sm">{formatNumber(trend.likes)}</span>
             </div>
-            <div className="flex items-center space-x-1">
-              <MessageCircle className="w-4 h-4" />
-              <span>{formatNumber(trend.comments)}</span>
+            <div className="flex items-center space-x-0.5 sm:space-x-1">
+              <MessageCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="text-xs sm:text-sm">{formatNumber(trend.comments)}</span>
             </div>
-            <div className="flex items-center space-x-1">
-              <Share className="w-4 h-4" />
-              <span>{formatNumber(trend.shares)}</span>
+            <div className="flex items-center space-x-0.5 sm:space-x-1">
+              <Share className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="text-xs sm:text-sm">{formatNumber(trend.shares)}</span>
             </div>
           </div>
         </div>
 
-         {/* Relevance Info - shown only if relevance score exists */}
-         {trend.relevance_score && trend.relevance_score > 0 && (
-           <div className="flex items-center justify-between text-xs text-text-secondary pt-2 border-t border-primary-line/50">
-             <div className="flex items-center space-x-1">
-               <Target className="w-3 h-3" />
-               <span>
-                 {trend.relevance_score >= 0.8 ? 'Highly relevant' :
-                  trend.relevance_score >= 0.6 ? 'Relevant' :
-                  trend.relevance_score >= 0.4 ? 'Somewhat relevant' :
-                  'Low relevance'}
-               </span>
-             </div>
-             <span className="text-xs">
-               {Math.round(trend.relevance_score * 100)}% match
-             </span>
-           </div>
-         )}
 
-         {/* Author & Date */}
-         <div className="flex items-center justify-between pt-2 border-t border-primary-line mt-auto">
-           <div className="flex items-center space-x-2">
+         {/* Author & Date - адаптивные размеры */}
+         <div className="flex items-center justify-between pt-2 sm:pt-3 border-t border-gray-200 mt-auto">
+           <div className="flex items-center space-x-1.5 sm:space-x-2 min-w-0 flex-1">
              {trend.author.avatar_url ? (
                <img
                  src={trend.author.avatar_url}
                  alt={trend.author.username}
-                 className="w-6 h-6 rounded-full object-cover"
+                 className="w-5 h-5 sm:w-6 sm:h-6 rounded-full object-cover flex-shrink-0"
                />
              ) : (
-               <div className="w-6 h-6 rounded-full bg-primary-line"></div>
+               <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gray-200 flex-shrink-0"></div>
              )}
-             <span className="text-text-secondary text-sm">
+             <span className="text-gray-600 text-xs sm:text-sm font-medium truncate">
                @{trend.author.username || 'unknown'}
              </span>
            </div>
-           <span className="text-text-secondary text-xs">
+           <span className="text-gray-500 text-xs flex-shrink-0 ml-2">
              {formatRelativeTime(trend.create_time)}
            </span>
          </div>

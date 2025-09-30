@@ -4,6 +4,7 @@ TrendXL 2.0 Backend - FastAPI Application
 import logging
 import asyncio
 from contextlib import asynccontextmanager
+from typing import Optional
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -35,6 +36,16 @@ from services.perplexity_service import perplexity_service
 from services.content_relevance_service import content_relevance_service
 from services.advanced_creative_center_service import advanced_creative_center_service
 from utils import RateLimiter, get_current_timestamp
+from auth_service import (
+    UserCreate, UserLogin, UserProfile, UserProfileUpdate, Token, TokenData,
+    verify_password, get_password_hash, create_access_token, decode_access_token,
+    user_to_profile
+)
+from database import (
+    create_user, get_user_by_email, get_user_by_username, get_user_by_id,
+    update_last_login, update_user_profile
+)
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 # Configure logging
 logging.basicConfig(
@@ -45,6 +56,9 @@ logger = logging.getLogger(__name__)
 
 # Rate limiter
 rate_limiter = RateLimiter(settings.max_requests_per_minute)
+
+# Security
+security = HTTPBearer(auto_error=False)
 
 
 @asynccontextmanager
@@ -233,6 +247,10 @@ async def analyze_trends(
     4. Returns comprehensive analysis results
     """
     try:
+        print(f"\n{'='*80}")
+        print(f"🚀 BACKEND: NEW ANALYSIS REQUEST RECEIVED!")
+        print(f"🎯 Profile URL: {request.profile_url}")
+        print(f"{'='*80}\n")
         logger.info(f"🎯 Trend analysis requested for: {request.profile_url}")
 
         # Try to get cached result first
@@ -241,20 +259,32 @@ async def analyze_trends(
         cached_result = await trend_service.get_cached_analysis(username)
 
         if cached_result:
+            print(f"📋 BACKEND: Returning CACHED result for @{username}")
             logger.info(f"📋 Returning cached analysis for @{username}")
             return cached_result
+
+        print(f"🔄 BACKEND: Starting NEW analysis (no cache found)...")
+        print(f"   - max_hashtags: 5")
+        print(f"   - videos_per_hashtag: 8")
 
         # Perform new analysis - increased videos per hashtag to ensure 10+ total videos
         result = await trend_service.analyze_profile_trends(
             profile_input=request.profile_url,
             max_hashtags=5,
-            videos_per_hashtag=4  # Increased from 2 to 4 to get more videos
+            videos_per_hashtag=8  # Increased from 4 to 8 to compensate for filters
         )
 
+        print(f"✅ BACKEND: Analysis completed for @{username}")
+        print(f"   - Found {len(result.trends)} trends")
+        print(f"{'='*80}\n")
         logger.info(f"✅ Analysis completed for @{username}")
         return result
 
     except Exception as e:
+        print(f"\n❌ BACKEND ERROR: Analysis failed!")
+        print(f"   Error: {e}")
+        print(f"   Error type: {type(e).__name__}")
+        print(f"{'='*80}\n")
         logger.error(f"Analysis failed: {e}")
 
         # Return appropriate error message
@@ -623,6 +653,169 @@ async def health_check():
             services={"error": str(e)}
         )
 
+# Authentication helper functions
+
+
+async def get_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+) -> Optional[UserProfile]:
+    """Get current authenticated user from JWT token"""
+    if not credentials:
+        return None
+
+    token_data = decode_access_token(credentials.credentials)
+    if not token_data or not token_data.user_id:
+        return None
+
+    user = get_user_by_id(token_data.user_id)
+    if not user:
+        return None
+
+    return user_to_profile(user)
+
+
+async def require_auth(
+    current_user: Optional[UserProfile] = Depends(get_current_user)
+) -> UserProfile:
+    """Require authentication - raises 401 if not authenticated"""
+    if not current_user:
+        raise HTTPException(
+            status_code=401,
+            detail="Not authenticated. Please log in."
+        )
+    return current_user
+
+
+# Authentication endpoints
+
+@app.post("/api/v1/auth/register", response_model=Token)
+async def register(user_data: UserCreate):
+    """Register a new user"""
+    try:
+        # Check if user already exists
+        existing_user = get_user_by_email(user_data.email)
+        if existing_user:
+            raise HTTPException(
+                status_code=400,
+                detail="Email already registered"
+            )
+
+        existing_username = get_user_by_username(user_data.username)
+        if existing_username:
+            raise HTTPException(
+                status_code=400,
+                detail="Username already taken"
+            )
+
+        # Create user
+        hashed_password = get_password_hash(user_data.password)
+        user = create_user(
+            email=user_data.email,
+            username=user_data.username,
+            hashed_password=hashed_password,
+            full_name=user_data.full_name
+        )
+
+        # Update last login
+        update_last_login(user["id"])
+
+        # Create access token
+        access_token = create_access_token(data={"user_id": user["id"]})
+
+        # Return token and user profile
+        user_profile = user_to_profile(user)
+
+        logger.info(f"✅ User registered: {user_data.username}")
+
+        return Token(
+            access_token=access_token,
+            user=user_profile
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Registration failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/auth/login", response_model=Token)
+async def login(credentials: UserLogin):
+    """Login with email and password"""
+    try:
+        # Get user by email
+        user = get_user_by_email(credentials.email)
+
+        if not user:
+            raise HTTPException(
+                status_code=401,
+                detail="Incorrect email or password"
+            )
+
+        # Verify password
+        if not verify_password(credentials.password, user["hashed_password"]):
+            raise HTTPException(
+                status_code=401,
+                detail="Incorrect email or password"
+            )
+
+        # Update last login
+        update_last_login(user["id"])
+
+        # Create access token
+        access_token = create_access_token(data={"user_id": user["id"]})
+
+        # Return token and user profile
+        user_profile = user_to_profile(user)
+
+        logger.info(f"✅ User logged in: {user['username']}")
+
+        return Token(
+            access_token=access_token,
+            user=user_profile
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Login failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/auth/me", response_model=UserProfile)
+async def get_me(current_user: UserProfile = Depends(require_auth)):
+    """Get current user profile"""
+    return current_user
+
+
+@app.put("/api/v1/auth/profile", response_model=UserProfile)
+async def update_profile(
+    profile_data: UserProfileUpdate,
+    current_user: UserProfile = Depends(require_auth)
+):
+    """Update current user profile"""
+    try:
+        updated_user = update_user_profile(
+            user_id=current_user.id,
+            full_name=profile_data.full_name,
+            avatar_url=profile_data.avatar_url,
+            bio=profile_data.bio
+        )
+
+        if not updated_user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        logger.info(f"✅ Profile updated: {current_user.username}")
+
+        return user_to_profile(updated_user)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Profile update failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Root endpoint
 
 
@@ -635,6 +828,10 @@ async def root():
         "description": "TikTok Trend Analysis API",
         "endpoints": {
             "health": "/health",
+            "auth_register": "/api/v1/auth/register",
+            "auth_login": "/api/v1/auth/login",
+            "auth_me": "/api/v1/auth/me",
+            "auth_profile": "/api/v1/auth/profile",
             "analyze": "/api/v1/analyze",
             "profile": "/api/v1/profile",
             "posts": "/api/v1/posts",

@@ -634,12 +634,8 @@ class EnsembleService:
         logger.debug(
             f"  - Parsed: followers={follower_count}, following={following_count}, likes={likes_count}, videos={video_count}")
 
-        # Extract avatar URL according to official API structure
-        avatar_url = (
-            safe_get_nested(user_data, ['avatar_larger', 'url_list', 0]) or
-            safe_get_nested(user_data, ['avatar_medium', 'url_list', 0]) or
-            safe_get_nested(user_data, ['avatar_thumb', 'url_list', 0]) or ""
-        )
+        # Extract avatar URL according to official API structure with comprehensive fallbacks
+        avatar_url = self._extract_best_avatar_url(user_data, username)
         if not isinstance(avatar_url, str):
             avatar_url = str(avatar_url) if avatar_url else ""
 
@@ -777,6 +773,14 @@ class EnsembleService:
                 additional_images = self._extract_additional_images(
                     video_info, post_data, cover_image_url, post_id)
 
+                # КРИТИЧНО: Если cover пустой, но есть additional images - используем первую как cover!
+                if not cover_image_url and additional_images:
+                    cover_image_url = additional_images[0]
+                    # Остальные - в additional
+                    additional_images = additional_images[1:]
+                    logger.info(
+                        f"✅ Post {post_id}: Used first additional image as cover")
+
                 logger.info(
                     f"📸 Post {post_id}: cover='{cover_image_url[:80] if cover_image_url else 'None'}{'...' if cover_image_url and len(cover_image_url) > 80 else ''}'")
                 logger.info(
@@ -796,12 +800,8 @@ class EnsembleService:
 
                 # Parse author information
                 from models import TikTokAuthor
-                author_avatar = (
-                    safe_get_nested(author_info, ['avatar_larger', 'url_list', 0]) or
-                    safe_get_nested(author_info, ['avatar_medium', 'url_list', 0]) or
-                    safe_get_nested(
-                        author_info, ['avatar_thumb', 'url_list', 0]) or ""
-                )
+                author_avatar = self._extract_best_avatar_url(
+                    author_info, author_username or "unknown")
                 author_verified = bool(safe_get_nested(
                     author_info, ['is_verified']))
 
@@ -1187,3 +1187,165 @@ class EnsembleService:
         except (ValueError, TypeError, OSError) as e:
             logger.warning(f"⚠️ Failed to parse timestamp {timestamp}: {e}")
             return datetime.datetime.now().isoformat() + 'Z'
+
+    def _extract_best_avatar_url(self, user_data: dict, username: str) -> str:
+        """
+        Extract the best available avatar URL from TikTok user data
+        Based on EnsembleData API structure with comprehensive fallbacks and validation
+        """
+        avatar_url = ""
+
+        try:
+            # Priority 1: Standard TikTok avatar URLs (highest quality first)
+            avatar_sources = [
+                # High-quality avatars
+                ['avatar_larger', 'url_list', 0],
+                ['avatar_larger', 'url_list', 1],
+                ['avatar_larger', 'url_list', 2],
+                ['avatar_300x300', 'url_list', 0],
+                ['avatar_168x168', 'url_list', 0],
+                ['avatar_medium', 'url_list', 0],
+                ['avatar_medium', 'url_list', 1],
+                ['avatar_medium', 'url_list', 2],
+
+                # Lower quality fallbacks
+                ['avatar_thumb', 'url_list', 0],
+                ['avatar_thumb', 'url_list', 1],
+                ['avatar_thumb', 'url_list', 2],
+                ['avatar_100x100', 'url_list', 0],
+                ['avatar_68x68', 'url_list', 0],
+
+                # Direct URL fallbacks (no url_list)
+                ['avatar_larger'],
+                ['avatar_medium'],
+                ['avatar_thumb'],
+                ['avatar_300x300'],
+                ['avatar_168x168'],
+                ['avatar_100x100'],
+                ['avatar_68x68'],
+            ]
+
+            # Try all avatar sources
+            for source_path in avatar_sources:
+                url = safe_get_nested(user_data, source_path)
+                if url and isinstance(url, str) and url.strip():
+                    # Validate the URL
+                    candidate_url = self._validate_and_fix_avatar_url(
+                        url.strip(), username)
+                    if candidate_url:
+                        avatar_url = candidate_url
+                        logger.debug(
+                            f"📸 Found avatar from user_data.{'.'.join(source_path)}: {avatar_url[:100]}")
+                        break
+
+            # Priority 2: Alternative avatar structures
+            if not avatar_url:
+                alternative_sources = [
+                    ['avatar', 'url_list', 0],
+                    ['avatar', 'url_list', 1],
+                    ['avatar_url'],
+                    ['avatar'],
+                    ['user_avatar'],
+                    ['profile_pic'],
+                    ['profile_image'],
+                ]
+
+                for source_path in alternative_sources:
+                    url = safe_get_nested(user_data, source_path)
+                    if url and isinstance(url, str) and url.strip():
+                        candidate_url = self._validate_and_fix_avatar_url(
+                            url.strip(), username)
+                        if candidate_url:
+                            avatar_url = candidate_url
+                            logger.debug(
+                                f"📸 Found avatar from alternative {'.'.join(source_path)}: {avatar_url[:100]}")
+                            break
+
+            # Log result
+            if avatar_url:
+                logger.info(
+                    f"✅ User @{username}: Found avatar ({len(avatar_url)} chars)")
+            else:
+                logger.warning(f"⚠️ User @{username}: No avatar found")
+                # Debug: log available user_data keys
+                if user_data:
+                    logger.debug(
+                        f"   Available user_data keys: {list(user_data.keys())}")
+
+        except Exception as e:
+            logger.error(f"❌ Error extracting avatar for @{username}: {e}")
+            avatar_url = ""
+
+        return avatar_url
+
+    def _validate_and_fix_avatar_url(self, url: str, username: str) -> str:
+        """
+        Validate and fix avatar URL format
+
+        Args:
+            url: Raw avatar URL
+            username: Username for logging context
+
+        Returns:
+            Valid avatar URL or empty string if invalid
+        """
+        if not url:
+            return ""
+
+        try:
+            url = url.strip()
+
+            # Fix protocol-relative URLs
+            if url.startswith('//'):
+                url = 'https:' + url
+
+            # Must start with valid protocol
+            if not url.startswith(('http://', 'https://')):
+                logger.warning(
+                    f"⚠️ Invalid avatar URL format for @{username}: {url[:100]}")
+                return ""
+
+            # Basic URL structure validation
+            if len(url) < 10:
+                logger.warning(
+                    f"⚠️ Avatar URL too short for @{username}: {url}")
+                return ""
+
+            if len(url) > 500:
+                logger.warning(
+                    f"⚠️ Avatar URL too long for @{username}, truncating")
+                url = url[:500]
+
+            # Check for common invalid patterns
+            invalid_patterns = [
+                'placeholder',
+                'default_avatar',
+                'no_image',
+                'missing_image',
+                'error',
+                '404'
+            ]
+
+            url_lower = url.lower()
+            for pattern in invalid_patterns:
+                if pattern in url_lower:
+                    logger.warning(
+                        f"⚠️ Avatar URL contains invalid pattern '{pattern}' for @{username}")
+                    return ""
+
+            # Check for valid image-like extensions (optional but helpful)
+            valid_extensions = ['.jpg', '.jpeg',
+                                '.png', '.gif', '.webp', '.avif']
+            has_extension = any(url_lower.endswith(ext)
+                                for ext in valid_extensions)
+
+            # Most TikTok avatars don't have extensions in URL, so this is just a helpful check
+            if has_extension:
+                logger.debug(
+                    f"📸 Avatar URL has valid image extension for @{username}")
+
+            return url
+
+        except Exception as e:
+            logger.error(f"❌ Error validating avatar URL for @{username}: {e}")
+            return ""

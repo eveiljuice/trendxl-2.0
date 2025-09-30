@@ -69,6 +69,18 @@ export interface TrendVideo {
   relevance_score?: number; // Content relevance score from GPT-4 Vision (0.0-1.0)
 }
 
+// Token Usage Types
+export interface TokenUsage {
+  openai_tokens: number;
+  openai_prompt_tokens: number;
+  openai_completion_tokens: number;
+  perplexity_tokens: number;
+  perplexity_prompt_tokens: number;
+  perplexity_completion_tokens: number;
+  ensemble_units: number;
+  total_cost_estimate: number;
+}
+
 // API Response Types
 export interface EnsembleApiResponse<T> {
   data: T;
@@ -88,6 +100,7 @@ export interface AppState {
   hashtags: string[];
   trends: TrendVideo[];
   error: string | null;
+  tokenUsage: TokenUsage | null;
 }
 
 // Component Props Types

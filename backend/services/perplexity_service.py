@@ -85,7 +85,7 @@ class PerplexityService:
             )
 
             # Make API request to Perplexity
-            response = await self._make_api_request(prompt)
+            response, token_usage = await self._make_api_request(prompt)
 
             # Parse the response into structured niche analysis
             niche_analysis = self._parse_niche_response(response)
@@ -146,8 +146,8 @@ Content Style: [Their approach/style - e.g., "Educational tutorials", "Entertain
 Focus on being specific and actionable. The niche should be clear enough to recommend relevant trending content.
 """
 
-    async def _make_api_request(self, prompt: str) -> str:
-        """Make API request to Perplexity with retry logic"""
+    async def _make_api_request(self, prompt: str) -> tuple[str, Dict[str, int]]:
+        """Make API request to Perplexity with retry logic and return token usage"""
         max_retries = 3
 
         for attempt in range(max_retries):
@@ -180,8 +180,19 @@ Focus on being specific and actionable. The niche should be clear enough to reco
                 if response.status_code == 200:
                     result = response.json()
                     content = result["choices"][0]["message"]["content"]
+
+                    # Extract token usage from response
+                    usage = result.get("usage", {})
+                    token_usage = {
+                        "prompt_tokens": usage.get("prompt_tokens", 0),
+                        "completion_tokens": usage.get("completion_tokens", 0),
+                        "total_tokens": usage.get("total_tokens", 0)
+                    }
+
+                    logger.info(
+                        f"💰 Perplexity tokens used: {token_usage['total_tokens']} (prompt: {token_usage['prompt_tokens']}, completion: {token_usage['completion_tokens']})")
                     logger.debug("✅ Perplexity API request successful")
-                    return content
+                    return content, token_usage
                 else:
                     logger.warning(
                         f"⚠️ Perplexity API returned status {response.status_code}: {response.text}")
@@ -330,12 +341,120 @@ Focus on being specific and actionable. The niche should be clear enough to reco
         """Close HTTP client"""
         await self.client.aclose()
 
+    async def analyze_tiktok_account_origin(
+        self,
+        username: str,
+        bio: str,
+        recent_posts_content: list[str],
+        follower_count: int = 0,
+        video_count: int = 0
+    ) -> Dict[str, str]:
+        """
+        Analyze TikTok account to determine its country/region of origin
+
+        Args:
+            username: TikTok username
+            bio: User bio/description  
+            recent_posts_content: List of recent post captions
+            follower_count: Number of followers
+            video_count: Number of videos posted
+
+        Returns:
+            Dict with country, country_code, and language
+        """
+        logger.info(f"🌍 Analyzing TikTok account origin for @{username}")
+
+        try:
+            # Prepare context for analysis
+            posts_text = "\n".join(recent_posts_content[:10])
+
+            prompt = f"""Analyze this TikTok account to determine its country/region of origin based on language, content style, cultural references, and other indicators:
+
+**Account Information:**
+- Username: @{username}
+- Bio: {bio or "No bio provided"}
+- Followers: {follower_count:,}
+- Total Videos: {video_count}
+
+**Recent Content (Post Captions):**
+{posts_text or "No recent posts available"}
+
+**Analysis Task:**
+Determine the most likely country/region this TikTok account is from based on:
+
+1. **Language**: What language(s) are used in bio and posts?
+2. **Cultural References**: Any local slang, cultural references, or regional topics?
+3. **Content Style**: Does the content style match specific regional TikTok trends?
+4. **Time/Location Indicators**: Any mentions of cities, events, or regional specifics?
+
+**Required Output Format:**
+Country: [Full country name, e.g., "United States", "United Kingdom", "Brazil"]
+Country_Code: [2-letter ISO code, e.g., "US", "GB", "BR"]
+Language: [Primary language code, e.g., "en", "pt", "es"]
+Confidence: [High/Medium/Low - how confident you are in this assessment]
+
+Be specific and provide your best assessment even with limited information."""
+
+            response, token_usage = await self._make_api_request(prompt)
+            return self._parse_account_origin_response(response)
+
+        except Exception as e:
+            logger.error(
+                f"❌ Account origin analysis failed for @{username}: {e}")
+            return {
+                "country": "United States",
+                "country_code": "US",
+                "language": "en",
+                "confidence": "Low"
+            }
+
+    def _parse_account_origin_response(self, response: str) -> Dict[str, str]:
+        """Parse account origin analysis response"""
+        try:
+            lines = response.strip().split('\n')
+
+            result = {
+                "country": "United States",
+                "country_code": "US",
+                "language": "en",
+                "confidence": "Low"
+            }
+
+            for line in lines:
+                line = line.strip()
+                if line.startswith('Country:'):
+                    result["country"] = line.replace(
+                        'Country:', '').strip().strip('"\'')
+                elif line.startswith('Country_Code:'):
+                    result["country_code"] = line.replace(
+                        'Country_Code:', '').strip().strip('"\'').upper()
+                elif line.startswith('Language:'):
+                    result["language"] = line.replace(
+                        'Language:', '').strip().strip('"\'').lower()
+                elif line.startswith('Confidence:'):
+                    result["confidence"] = line.replace(
+                        'Confidence:', '').strip().strip('"\'')
+
+            logger.info(
+                f"✅ Account origin detected: {result['country']} ({result['country_code']}) - {result['confidence']} confidence")
+            return result
+
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to parse account origin response: {e}")
+            return {
+                "country": "United States",
+                "country_code": "US",
+                "language": "en",
+                "confidence": "Low"
+            }
+
     async def discover_creative_center_hashtags(
         self,
         niche: str,
         country: str = "US",
         language: str = "en",
-        limit: int = 10
+        limit: int = 10,
+        account_origin: Optional[Dict[str, str]] = None
     ) -> List[Dict[str, Any]]:
         """
         Use Perplexity Sonar (web-enabled) to find popular Creative Center hashtags
@@ -350,13 +469,27 @@ Focus on being specific and actionable. The niche should be clear enough to reco
         Returns:
             List of CreativeCenterHashtag data as dictionaries
         """
+        # Use account origin if provided, otherwise use defaults
+        if account_origin:
+            actual_country = account_origin.get("country", country)
+            actual_country_code = account_origin.get("country_code", country)
+            actual_language = account_origin.get("language", language)
+            confidence = account_origin.get("confidence", "Unknown")
+            logger.info(
+                f"🔍 Using detected account origin: {actual_country} ({confidence} confidence)")
+        else:
+            actual_country = country
+            actual_country_code = country
+            actual_language = language
+            logger.info(f"🔍 Using default location: {country}")
+
         logger.info(
-            f"🔍 Discovering Creative Center hashtags for niche: {niche}")
+            f"🔍 Discovering Creative Center hashtags for niche: {niche} (Target: {actual_country}, Language: {actual_language})")
 
         try:
-            # Creative Center URL pattern
-            base_url = f"https://ads.tiktok.com/business/creativecenter/inspiration/popular/hashtag/pc/{language}"
-            region_hint = f"Region: {country}, Language: {language}"
+            # Creative Center URL pattern with regional focus
+            base_url = f"https://ads.tiktok.com/business/creativecenter/inspiration/popular/hashtag/pc/{actual_language}"
+            region_hint = f"Focus specifically on {actual_country} ({actual_country_code}) region, Language: {actual_language}"
 
             # Structured JSON output format
             json_format = """{
@@ -376,12 +509,15 @@ Focus on being specific and actionable. The niche should be clear enough to reco
 {region_hint}
 Start your research at: {base_url}
 
-Task Requirements:
-- Find hashtags specifically relevant to "{niche}", not just generic trending tags
-- Prioritize hashtags with high engagement and growth potential
-- Include niche-specific hashtags, trending variations, and related topics
-- Avoid generic hashtags like #fyp, #viral unless they're dominant in this niche
-- Look for recent trending data (last 7-30 days preferred)
+CRITICAL REQUIREMENTS:
+- Find hashtags specifically relevant to "{niche}" that are popular in {actual_country}
+- Look for regional variants and local trending topics for {actual_country} TikTok community
+- Prioritize hashtags with high engagement and growth potential in the {actual_country} market
+- Include niche-specific hashtags, trending variations, and culturally relevant topics for {actual_country}
+- COMPLETELY AVOID generic hashtags like #fyp, #viral, #trending - focus on niche-specific content
+- Look for recent trending data (last 7 days preferred, maximum 30 days)
+- Consider local culture, language variants ({actual_language}), and regional interests specific to {actual_country}
+- Focus on hashtags that would be used by content creators FROM {actual_country} in this niche
 
 For each hashtag, gather:
 - name: hashtag without the # symbol
@@ -396,7 +532,7 @@ Return EXACTLY this JSON format with no additional text:
 Limit to top {limit} most relevant hashtags sorted by relevance and performance."""
 
             # Make API request to Perplexity
-            response_text = await self._make_api_request(prompt)
+            response_text, token_usage = await self._make_api_request(prompt)
 
             # Try to extract and parse JSON from the response
             try:

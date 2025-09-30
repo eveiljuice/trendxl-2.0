@@ -12,6 +12,7 @@ export const useTrendAnalysis = () => {
     hashtags: [],
     trends: [],
     error: null,
+    tokenUsage: null,
   });
 
   // Progress tracking state
@@ -70,14 +71,15 @@ export const useTrendAnalysis = () => {
 
       try {
         // First, try the new Creative Center complete analysis
-        console.log('🎯 Attempting Creative Center + Ensemble analysis...');
+        // Country and language will be auto-detected from the TikTok account itself
+        console.log('🎯 Attempting Creative Center + Ensemble analysis with auto-detection...');
         const creativeResult = await analyzeCreativeCenterComplete(
           profileInput, 
-          'US', // default country
-          'en', // default language
-          5,    // hashtag limit
-          3,    // videos per hashtag
-          true, // auto detect geo
+          'US',   // Default - will be overridden by profile analysis
+          'en',   // Default - will be overridden by profile analysis  
+          5,      // hashtag limit
+          3,      // videos per hashtag
+          true,   // auto detect geo from TikTok account
           onProgress
         );
         
@@ -88,7 +90,8 @@ export const useTrendAnalysis = () => {
           profile: creativeResult.profile,
           posts: [], // Creative Center analysis doesn't return user posts
           hashtags: creativeCenterHashtags,
-          trends: creativeResult.trends
+          trends: creativeResult.trends,
+          tokenUsage: creativeResult.token_usage || null
         });
         
         console.log(`✅ Creative Center анализ завершен! Найдено ${creativeResult.trends.length} трендовых видео и ${creativeCenterHashtags.length} хештегов из Creative Center`);
@@ -105,12 +108,12 @@ export const useTrendAnalysis = () => {
           updateState({
             profile: result.profile,
             posts: result.posts,
-            hashtags: [], // Не показываем хештеги из традиционного анализа
-            trends: result.trends
+            hashtags: result.hashtags, // Показываем хештеги из традиционного анализа
+            trends: result.trends,
+            tokenUsage: result.token_usage || null
           });
           
-          console.log(`✅ Традиционный анализ завершен! Найдено ${result.trends.length} трендовых видео`);
-          console.log('ℹ️ Хештеги не отображаются - доступны только через Creative Center анализ');
+          console.log(`✅ Традиционный анализ завершен! Найдено ${result.trends.length} трендовых видео и ${result.hashtags.length} хештегов`);
           
         } catch (backendError) {
           console.error('❌ Backend анализ не удался:', backendError);
@@ -122,11 +125,12 @@ export const useTrendAnalysis = () => {
           updateState({
             profile: result.profile,
             posts: result.posts,
-            hashtags: [], // Не показываем хештеги из простого анализа
-            trends: result.trends
+            hashtags: result.hashtags, // Показываем хештеги из простого анализа
+            trends: result.trends,
+            tokenUsage: result.token_usage || null
           });
           
-          console.log('ℹ️ Хештеги не отображаются - доступны только через Creative Center анализ');
+          console.log(`✅ Простой анализ завершен! Найдено ${result.trends.length} трендовых видео и ${result.hashtags.length} хештегов`);
         }
       }
       

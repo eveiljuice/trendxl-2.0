@@ -18,29 +18,29 @@ const ErrorState: React.FC<ErrorStateProps> = ({
   isLoading = false 
 }) => {
   return (
-    <div className="section-spacing animate-fade-in">
+    <div className="section-spacing animate-fade-in px-4 sm:px-6">
       <div className="max-w-md mx-auto text-center">
-        {/* Error Icon */}
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-red-500/10 rounded-full mb-6">
-          <AlertTriangle className="w-8 h-8 text-red-400" />
+        {/* Error Icon - адаптивные размеры */}
+        <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 bg-red-500/10 rounded-full mb-4 sm:mb-6">
+          <AlertTriangle className="w-7 h-7 sm:w-8 sm:h-8 text-red-400" />
         </div>
 
-        {/* Error Message */}
-        <h2 className="text-xl font-bold text-text-primary mb-2">
+        {/* Error Message - адаптивные размеры */}
+        <h2 className="text-lg sm:text-xl font-bold text-text-primary mb-2">
           Something went wrong
         </h2>
-        <p className="text-text-secondary mb-8 leading-relaxed">
+        <p className="text-sm sm:text-base text-content-subtitle mb-6 sm:mb-8 leading-relaxed">
           {error}
         </p>
 
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+        {/* Action Buttons - адаптивные отступы */}
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center">
           {onRetry && (
             <button
               onClick={onRetry}
-              className="btn-primary flex items-center justify-center space-x-2"
+              className="btn-primary flex items-center justify-center space-x-1.5 sm:space-x-2 text-sm sm:text-base px-4 py-2 sm:px-6 sm:py-3"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>Try again</span>
             </button>
           )}
@@ -49,25 +49,25 @@ const ErrorState: React.FC<ErrorStateProps> = ({
             <button
               onClick={onReset}
               className="
-                px-6 py-3 
-                bg-primary-card border border-primary-line rounded-btn
-                text-text-primary hover:text-text-primary hover:border-primary-accent/30
+                px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base
+                bg-white border border-gray-200 rounded-btn
+                text-black hover:text-black hover:border-black/30
                 transition-all duration-150
-                flex items-center justify-center space-x-2
+                flex items-center justify-center space-x-1.5 sm:space-x-2
               "
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>Start over</span>
             </button>
           )}
         </div>
 
-        {/* Help Text */}
-        <div className="mt-8 p-4 bg-primary-card rounded-card border border-primary-line">
-          <h3 className="text-sm font-medium text-text-primary mb-2">
+        {/* Help Text - адаптивные отступы */}
+        <div className="mt-6 sm:mt-8 p-3 sm:p-4 bg-gray-50 rounded-lg sm:rounded-card border border-gray-200">
+          <h3 className="text-xs sm:text-sm font-medium text-text-primary mb-1.5 sm:mb-2">
             Common Issues & Solutions:
           </h3>
-          <ul className="text-xs text-text-secondary space-y-1 text-left">
+          <ul className="text-xs text-content-subtitle space-y-0.5 sm:space-y-1 text-left">
             <li>• <strong>Profile not found:</strong> Check if profile is public and URL is correct</li>
             <li>• <strong>Rate limit exceeded:</strong> Wait 5-10 minutes before trying again</li>
             <li>• <strong>API connection issues:</strong> Check internet connection and API keys</li>
@@ -75,7 +75,7 @@ const ErrorState: React.FC<ErrorStateProps> = ({
             <li>• <strong>Regional restrictions:</strong> Profile might be restricted in your region</li>
           </ul>
           
-          <div className="mt-3 text-xs text-text-tertiary">
+          <div className="mt-3 text-xs text-content-placeholder">
             💡 <strong>Tip:</strong> Try using just the username (e.g., "zachking") instead of the full URL
           </div>
         </div>
