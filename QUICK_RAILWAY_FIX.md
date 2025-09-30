@@ -1,6 +1,7 @@
 # 🚀 Быстрое исправление Railway Backend (2 минуты)
 
 ## 🔥 Проблема
+
 Backend падает: `ValidationError - API keys required`
 
 ## ✅ Решение (3 шага)
@@ -22,6 +23,7 @@ CORS_ORIGINS=https://trendxl-20-frontend-production.up.railway.app
 **Railway Dashboard → Backend Service → Settings → Deploy**
 
 Найдите:
+
 - **Docker Dockerfile Path**: измените на `Dockerfile.backend`
 
 ИЛИ убедитесь что используется `railway.backend.toml`
@@ -29,6 +31,7 @@ CORS_ORIGINS=https://trendxl-20-frontend-production.up.railway.app
 ### 3️⃣ Redeploy
 
 **Railway Dashboard → Backend Service → Deployments**
+
 - Нажмите на последний деплой
 - Кнопка **Redeploy**
 
@@ -39,8 +42,9 @@ curl https://trendxl-20-backend-production.up.railway.app/health
 ```
 
 Должен вернуть:
+
 ```json
-{"status": "healthy", "services": {"backend": true}}
+{ "status": "healthy", "services": { "backend": true } }
 ```
 
 ## 📚 Подробная инструкция
@@ -51,4 +55,3 @@ curl https://trendxl-20-backend-production.up.railway.app/health
 
 **Время исправления**: ~2 минуты  
 **Дата**: 30 сентября 2025
-

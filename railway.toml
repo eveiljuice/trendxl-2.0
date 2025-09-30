@@ -1,12 +1,12 @@
-# TrendXL 2.0 - Railway Configuration for Fullstack Application
-# Single service that combines React/Vite frontend with Python FastAPI backend
+# TrendXL 2.0 - Railway Configuration for Backend Service
+# Standalone Python FastAPI backend (no frontend, no nginx)
 
 [build]
-builder = "dockerfile"
-dockerfilePath = "Dockerfile"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.backend"
 
 [deploy]
-startCommand = "/start-services.sh"
+startCommand = "python run_server.py"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
@@ -14,9 +14,9 @@ restartPolicyMaxRetries = 10
 
 [env]
 # Railway will automatically set PORT, but we can define defaults
-NODE_ENV = "production"
 PYTHONPATH = "/app/backend"
 PYTHONUNBUFFERED = "1"
+PYTHONDONTWRITEBYTECODE = "1"
 HOST = "0.0.0.0"
 DEBUG = "false"
 ENVIRONMENT = "production"

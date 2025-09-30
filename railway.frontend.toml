@@ -1,0 +1,15 @@
+# TrendXL 2.0 - Railway Configuration for Frontend Service
+# React + Vite + Nginx static file server
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.frontend"
+
+[deploy]
+startCommand = "nginx -g 'daemon off;'"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+[env]
+NODE_ENV = "production"
+
