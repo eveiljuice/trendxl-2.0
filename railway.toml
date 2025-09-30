@@ -1,5 +1,13 @@
-# TrendXL 2.0 - Railway Configuration for Backend Service
-# Standalone Python FastAPI backend (no frontend, no nginx)
+# TrendXL 2.0 - DEPRECATED Railway Configuration
+# ⚠️ This file is for SINGLE backend-only deployment
+# 
+# For SEPARATE backend + frontend services deployment, use:
+#   - railway.backend.toml (for backend service)
+#   - railway.frontend.toml (for frontend service)
+#
+# See RAILWAY_DEPLOYMENT_GUIDE_V2.md for full instructions
+#
+# This file kept for backward compatibility with single-service deployments
 
 [build]
 builder = "DOCKERFILE"
