@@ -1,6 +1,6 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
-  "name": "TrendXL-Frontend",
+  "name": "TrendXL-Fullstack",
   "build": {
     "builder": "dockerfile",
     "dockerfilePath": "Dockerfile"
@@ -15,13 +15,17 @@
     "production": {
       "variables": {
         "PORT": "${{RAILWAY_PORT}}",
-        "NODE_ENV": "production"
+        "NODE_ENV": "production",
+        "PYTHONPATH": "/app/backend",
+        "PYTHONUNBUFFERED": "1",
+        "HOST": "0.0.0.0",
+        "DEBUG": "false"
       }
     }
   },
   "healthcheck": {
     "path": "/health",
-    "timeout": 30,
+    "timeout": 60,
     "interval": 60
   }
 }
