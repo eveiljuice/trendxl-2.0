@@ -5,8 +5,8 @@ import axios from 'axios';
 import { TikTokProfile, TikTokPost, TrendVideo, CreativeCenterHashtag, NicheHashtagResponse, CreativeCenterAnalysisRequest, CreativeCenterAnalysisResponse } from '../types';
 
 // Backend API configuration
-// В production ВСЕГДА используем относительные пути (nginx прокси)
-// В development можем использовать прямое подключение к backend
+// В production используем отдельный Railway backend service
+// В development используем localhost
 
 // Отладка: выводим информацию о переменных окружения
 console.log('🔍 Environment Debug:', {
@@ -16,10 +16,8 @@ console.log('🔍 Environment Debug:', {
   MODE: import.meta.env.MODE
 });
 
-// Принудительно используем пустую строку в production для относительных путей
-const BACKEND_API_BASE_URL = import.meta.env.PROD 
-  ? '' // В production ВСЕГДА используем относительные пути
-  : (import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:8000');
+// В production используем Railway backend URL, в dev - localhost
+const BACKEND_API_BASE_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:8000';
 
 // Отладка: выводим финальный URL
 console.log('🌐 Final API Base URL:', BACKEND_API_BASE_URL);

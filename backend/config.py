@@ -40,8 +40,10 @@ class Settings(BaseSettings):
         default=[
             "http://localhost:3000",
             "http://localhost:5173",
-            # Разрешаем тот же домен (для fullstack container)
-            "*"  # В unified container фронтенд на том же домене
+            # Railway frontend service
+            "https://trendxl-20-frontend-production.up.railway.app",
+            # Allow all Railway domains for flexibility
+            "*"  # Remove in production for better security
         ],
         env="CORS_ORIGINS"
     )
