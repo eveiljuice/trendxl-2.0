@@ -46,15 +46,21 @@ def main():
             print(f"   - {var}")
         print("\n💡 Please set these variables in your .env file with real API keys")
         print("   Server will start but API calls will fail without valid keys")
-        print("   Press Ctrl+C to exit and add keys, or continue for demo mode...")
-        try:
-            import time
-            for i in range(5, 0, -1):
-                print(f"   Continuing in {i} seconds...")
-                time.sleep(1)
-        except KeyboardInterrupt:
-            print("\n👋 Exiting. Please add API keys to .env file.")
-            sys.exit(1)
+        
+        # In production, don't wait - just start
+        # In development, give user time to cancel
+        if settings.debug:
+            print("   Press Ctrl+C to exit and add keys, or continue for demo mode...")
+            try:
+                import time
+                for i in range(5, 0, -1):
+                    print(f"   Continuing in {i} seconds...")
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                print("\n👋 Exiting. Please add API keys to .env file.")
+                sys.exit(1)
+        else:
+            print("   ⚠️  Production mode: Starting immediately without valid keys")
     else:
         print("✅ All API keys configured")
     

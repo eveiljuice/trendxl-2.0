@@ -37,9 +37,10 @@ USER trendxl
 # Expose port (Railway will set PORT env var)
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
+# Health check - Railway has its own healthcheck, but we keep this as fallback
+# Increased start-period to allow for API key validation and startup
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
 
 # Start backend server
 # Railway will provide PORT environment variable
