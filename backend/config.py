@@ -16,10 +16,11 @@ logger = logging.getLogger(__name__)
 class Settings(BaseSettings):
     """Application settings"""
 
-    # API Keys
-    ensemble_api_token: str = Field(..., env="ENSEMBLE_API_TOKEN")
-    openai_api_key: str = Field(..., env="OPENAI_API_KEY")
-    perplexity_api_key: str = Field(..., env="PERPLEXITY_API_KEY")
+    # API Keys - Made optional for Railway deployment to allow health checks
+    # Set default to empty string to prevent startup failure
+    ensemble_api_token: str = Field(default="", env="ENSEMBLE_API_TOKEN")
+    openai_api_key: str = Field(default="", env="OPENAI_API_KEY")
+    perplexity_api_key: str = Field(default="", env="PERPLEXITY_API_KEY")
 
     # Optional API tokens for other services
     seatable_api_token: Optional[str] = Field(None, env="SEATABLE_API_TOKEN")
@@ -105,16 +106,27 @@ class Settings(BaseSettings):
     @classmethod
     def validate_ensemble_token(cls, v):
         """Validate Ensemble Data API token according to official SDK requirements"""
-        if not v or len(v.strip()) < 10:
-            raise ValueError(
-                "❌ ENSEMBLE_API_TOKEN is missing or too short. "
+        # Allow empty for Railway health checks
+        if not v or len(v.strip()) == 0:
+            logger.warning(
+                "⚠️ ENSEMBLE_API_TOKEN is missing. "
+                "Set it in Railway environment variables: https://dashboard.ensembledata.com/"
+            )
+            return ""
+        
+        if len(v.strip()) < 10:
+            logger.warning(
+                "⚠️ ENSEMBLE_API_TOKEN appears too short. "
                 "Get your API key from: https://dashboard.ensembledata.com/"
             )
+            return v.strip()
+            
         if v.strip() == "your-ensemble-api-token-here":
-            raise ValueError(
-                "❌ ENSEMBLE_API_TOKEN is using placeholder value. "
+            logger.warning(
+                "⚠️ ENSEMBLE_API_TOKEN is using placeholder value. "
                 "Replace it with your real API token from: https://dashboard.ensembledata.com/"
             )
+            return ""
 
         # Test token format (basic validation)
         token = v.strip()
@@ -129,21 +141,35 @@ class Settings(BaseSettings):
     @classmethod
     def validate_openai_key(cls, v):
         """Validate OpenAI API key"""
-        if not v or len(v.strip()) < 20:
-            raise ValueError(
-                "❌ OPENAI_API_KEY is missing or too short. "
+        # Allow empty for Railway health checks
+        if not v or len(v.strip()) == 0:
+            logger.warning(
+                "⚠️ OPENAI_API_KEY is missing. "
+                "Set it in Railway environment variables: https://platform.openai.com/api-keys"
+            )
+            return ""
+            
+        if len(v.strip()) < 20:
+            logger.warning(
+                "⚠️ OPENAI_API_KEY appears too short. "
                 "Get your API key from: https://platform.openai.com/api-keys"
             )
+            return v.strip()
+            
         if v.strip() == "your-openai-api-key-here":
-            raise ValueError(
-                "❌ OPENAI_API_KEY is using placeholder value. "
+            logger.warning(
+                "⚠️ OPENAI_API_KEY is using placeholder value. "
                 "Replace it with your real API key from: https://platform.openai.com/api-keys"
             )
+            return ""
+            
         if not v.strip().startswith(('sk-', 'sk-proj-')):
-            raise ValueError(
-                "❌ OPENAI_API_KEY format is invalid. "
+            logger.warning(
+                "⚠️ OPENAI_API_KEY format may be invalid. "
                 "OpenAI API keys should start with 'sk-' or 'sk-proj-'"
             )
+            return v.strip()
+            
         logger.info("✅ OpenAI API key validated")
         return v.strip()
 
