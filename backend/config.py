@@ -113,14 +113,14 @@ class Settings(BaseSettings):
                 "Set it in Railway environment variables: https://dashboard.ensembledata.com/"
             )
             return ""
-        
+
         if len(v.strip()) < 10:
             logger.warning(
                 "⚠️ ENSEMBLE_API_TOKEN appears too short. "
                 "Get your API key from: https://dashboard.ensembledata.com/"
             )
             return v.strip()
-            
+
         if v.strip() == "your-ensemble-api-token-here":
             logger.warning(
                 "⚠️ ENSEMBLE_API_TOKEN is using placeholder value. "
@@ -148,28 +148,28 @@ class Settings(BaseSettings):
                 "Set it in Railway environment variables: https://platform.openai.com/api-keys"
             )
             return ""
-            
+
         if len(v.strip()) < 20:
             logger.warning(
                 "⚠️ OPENAI_API_KEY appears too short. "
                 "Get your API key from: https://platform.openai.com/api-keys"
             )
             return v.strip()
-            
+
         if v.strip() == "your-openai-api-key-here":
             logger.warning(
                 "⚠️ OPENAI_API_KEY is using placeholder value. "
                 "Replace it with your real API key from: https://platform.openai.com/api-keys"
             )
             return ""
-            
+
         if not v.strip().startswith(('sk-', 'sk-proj-')):
             logger.warning(
                 "⚠️ OPENAI_API_KEY format may be invalid. "
                 "OpenAI API keys should start with 'sk-' or 'sk-proj-'"
             )
             return v.strip()
-            
+
         logger.info("✅ OpenAI API key validated")
         return v.strip()
 

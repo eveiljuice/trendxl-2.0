@@ -163,7 +163,8 @@ railway logs --service backend
 
 **Cause**: Missing API keys prevent server from starting
 
-**Solution**: 
+**Solution**:
+
 1. Check Railway logs: `railway logs --service backend`
 2. Look for warnings about missing API keys
 3. Set the missing variables in Railway dashboard
@@ -174,6 +175,7 @@ railway logs --service backend
 **Cause**: `VITE_BACKEND_API_URL` not set or incorrect
 
 **Solution**:
+
 1. Get backend URL from Railway dashboard
 2. Set `VITE_BACKEND_API_URL` in frontend service variables
 3. **Redeploy frontend** (VITE vars are build-time!)
@@ -217,4 +219,3 @@ Before deploying:
 **Ready to deploy!** 🚀
 
 For full deployment guide, see [RAILWAY_QUICK_START.md](./RAILWAY_QUICK_START.md)
-

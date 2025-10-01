@@ -1,31 +1,32 @@
-# TrendXL 2.0 - DEPRECATED Railway Configuration
-# ⚠️ This file is for SINGLE backend-only deployment
+# TrendXL 2.0 - Railway Multi-Service Configuration
 # 
-# For SEPARATE backend + frontend services deployment, use:
-#   - railway.backend.toml (for backend service)
-#   - railway.frontend.toml (for frontend service)
+# ⚠️ ВАЖНО: Railway автоматически обрабатывает маршрутизацию между сервисами!
+# 
+# Этот файл НЕ используется для настройки роутинга.
+# Маршрутизация работает автоматически через Railway переменные:
+#   - ${{Backend.RAILWAY_PUBLIC_DOMAIN}}
+#   - ${{Frontend.RAILWAY_PUBLIC_DOMAIN}}
 #
-# See RAILWAY_DEPLOYMENT_GUIDE_V2.md for full instructions
+# ПРАВИЛЬНЫЙ СПОСОБ ДЕПЛОЯ на Railway:
+# 1. Создать Backend Service через Railway UI
+#    - Settings → Build → Dockerfile Path: Dockerfile.backend
+#    - Variables → указать API ключи
+#    - Networking → Generate Domain
 #
-# This file kept for backward compatibility with single-service deployments
-
-[build]
-builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile.backend"
-
-[deploy]
-startCommand = "python run_server.py"
-healthcheckPath = "/health"
-healthcheckTimeout = 60
-restartPolicyType = "ON_FAILURE"
-restartPolicyMaxRetries = 10
-
-[env]
-# Railway will automatically set PORT, but we can define defaults
-PYTHONPATH = "/app/backend"
-PYTHONUNBUFFERED = "1"
-PYTHONDONTWRITEBYTECODE = "1"
-HOST = "0.0.0.0"
-DEBUG = "false"
-ENVIRONMENT = "production"
-LOG_LEVEL = "INFO"
+# 2. Создать Frontend Service через Railway UI
+#    - Settings → Build → Dockerfile Path: Dockerfile.frontend
+#    - Variables → VITE_BACKEND_API_URL=https://${{Backend.RAILWAY_PUBLIC_DOMAIN}}
+#    - Networking → Generate Domain
+#
+# Railway автоматически:
+#   ✅ Создаст внутреннюю сеть между сервисами
+#   ✅ Назначит динамические порты через ${{RAILWAY_PORT}}
+#   ✅ Настроит HTTPS и SSL сертификаты
+#   ✅ Обеспечит связь Frontend ↔ Backend
+#
+# Подробнее: RAILWAY_DEPLOYMENT_GUIDE.md
+#
+# -------------------------------------------------------------------
+# Ниже представлена справочная конфигурация для отдельных сервисов
+# (используйте railway.backend.json и railway.frontend.json вместо этого файла)
+# -------------------------------------------------------------------

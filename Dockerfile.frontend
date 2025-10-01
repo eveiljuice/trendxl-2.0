@@ -1,44 +1,59 @@
-# TrendXL 2.0 - Standalone Frontend Service for Railway
-# React + Vite build served by Nginx
+# TrendXL 2.0 - Optimized Frontend for Railway
+# Multi-stage build: React + Vite → Nginx
 
-# Stage 1: Build React/Vite application
+# ============================================
+# Stage 1: Build React/Vite Application
+# ============================================
 FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files first (better layer caching)
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --include=dev
+# Install dependencies with clean install
+RUN npm ci --include=dev --prefer-offline --no-audit
 
 # Copy source code and config files
 COPY . ./
 
 # Build the application
-# Vite will use .env.production for environment variables
+# Railway will inject VITE_* environment variables at build time
 RUN npm run build
 
-# Stage 2: Serve with Nginx
+# Verify build output
+RUN ls -lah /app/dist && \
+    echo "✅ Build completed successfully"
+
+# ============================================
+# Stage 2: Serve with Nginx (Production)
+# ============================================
 FROM nginx:alpine
 
-# Copy built files from builder
+# Install gettext for envsubst (if needed in future)
+RUN apk add --no-cache bash
+
+# Copy built files from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy nginx configuration
+# Copy nginx configuration template
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Create nginx user if doesn't exist
-RUN addgroup -g 101 -S nginx 2>/dev/null || true && \
-    adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx 2>/dev/null || true
+# Copy custom entrypoint script for Railway PORT support
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
-# Expose port (Railway will set PORT env var)
+# Create directories and set permissions
+RUN mkdir -p /var/cache/nginx /var/log/nginx && \
+    chown -R nginx:nginx /var/cache/nginx /var/log/nginx /usr/share/nginx/html
+
+# Expose port (Railway dynamically assigns PORT via env var)
 EXPOSE 80
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1
+# Health check - will be replaced by Railway's health check on correct port
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-80}/health || exit 1
 
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Use custom entrypoint that configures PORT dynamically
+ENTRYPOINT ["/docker-entrypoint.sh"]
 
