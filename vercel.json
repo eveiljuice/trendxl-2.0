@@ -42,7 +42,7 @@
   },
   "build": {
     "env": {
-      "VITE_BACKEND_API_URL": "https://your-project-name.vercel.app"
+      "VITE_BACKEND_API_URL": ""
     }
   }
 }

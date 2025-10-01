@@ -5,7 +5,7 @@ import axios from 'axios';
 import { TikTokProfile, TikTokPost, TrendVideo, CreativeCenterHashtag, NicheHashtagResponse, CreativeCenterAnalysisRequest, CreativeCenterAnalysisResponse } from '../types';
 
 // Backend API configuration
-// В production используем отдельный Railway backend service
+// На Vercel фронтенд и бекенд на одном домене - используем относительные пути
 // В development используем localhost
 
 // Отладка: выводим информацию о переменных окружения
@@ -13,11 +13,14 @@ console.log('🔍 Environment Debug:', {
   VITE_BACKEND_API_URL: import.meta.env.VITE_BACKEND_API_URL,
   PROD: import.meta.env.PROD,
   DEV: import.meta.env.DEV,
-  MODE: import.meta.env.MODE
+  MODE: import.meta.env.MODE,
+  BASE_URL: import.meta.env.BASE_URL
 });
 
-// В production используем Railway backend URL, в dev - localhost
-const BACKEND_API_BASE_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:8000';
+// На Vercel используем относительные пути (фронтенд и API на одном домене)
+// В development используем localhost
+const BACKEND_API_BASE_URL = import.meta.env.VITE_BACKEND_API_URL || 
+  (import.meta.env.PROD ? '' : 'http://localhost:8000');
 
 // Отладка: выводим финальный URL
 console.log('🌐 Final API Base URL:', BACKEND_API_BASE_URL);
