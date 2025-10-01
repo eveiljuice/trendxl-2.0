@@ -12,6 +12,14 @@
     {
       "source": "/health",
       "destination": "/api/index.py"
+    },
+    {
+      "source": "/test",
+      "destination": "/api/test.py"
+    },
+    {
+      "source": "/debug",
+      "destination": "/api/debug.py"
     }
   ],
   "functions": {
