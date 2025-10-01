@@ -1,0 +1,24 @@
+# Railway Configuration для TrendXL 2.0
+
+# Backend Service
+[[services]]
+name = "backend"
+root = "backend"
+dockerfile = "Dockerfile"
+
+[services.healthcheck]
+path = "/health"
+timeout = 30
+interval = 30
+
+# Frontend Service  
+[[services]]
+name = "frontend"
+root = "."
+dockerfile = "Dockerfile"
+
+[services.healthcheck]
+path = "/health"
+timeout = 30
+interval = 30
+
