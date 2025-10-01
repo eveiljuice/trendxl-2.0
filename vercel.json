@@ -20,6 +20,10 @@
     {
       "source": "/debug",
       "destination": "/api/debug.py"
+    },
+    {
+      "source": "/simple",
+      "destination": "/api/simple.py"
     }
   ],
   "functions": {
