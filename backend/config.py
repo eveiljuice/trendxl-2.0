@@ -41,10 +41,7 @@ class Settings(BaseSettings):
         default=[
             "http://localhost:3000",
             "http://localhost:5173",
-            # Railway frontend service
-            "https://trendxl-20-frontend-production.up.railway.app",
-            # Allow all Railway domains for flexibility
-            "*"  # Remove in production for better security
+            "http://localhost:80",
         ],
         env="CORS_ORIGINS"
     )

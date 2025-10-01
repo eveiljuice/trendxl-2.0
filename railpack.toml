@@ -1,7 +1,0 @@
-# Railpack Configuration
-# This file explicitly DISABLES Railpack
-# Railway should use Dockerfile builder instead
-
-[build]
-builder = "dockerfile"
-
