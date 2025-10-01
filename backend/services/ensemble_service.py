@@ -25,13 +25,18 @@ class EnsembleService:
 
     def __init__(self):
         """Initialize Ensemble Data client according to official documentation"""
+        self.client = None
+        self.initialized = False
         try:
-            self.client = EDClient(settings.ensemble_api_token)
-            logger.info("✅ Ensemble Data SDK client initialized successfully")
+            if settings.ensemble_api_token and len(settings.ensemble_api_token) > 10:
+                self.client = EDClient(settings.ensemble_api_token)
+                self.initialized = True
+                logger.info("✅ Ensemble Data SDK client initialized successfully")
+            else:
+                logger.warning("⚠️ Ensemble API token not configured - service disabled")
         except Exception as e:
             logger.error(f"❌ Failed to initialize Ensemble Data client: {e}")
-            raise Exception(
-                f"Ensemble Data client initialization failed: {str(e)}")
+            self.initialized = False
 
     def _run_in_executor(self, func, *args, **kwargs):
         """Run synchronous SDK calls in thread executor for async compatibility"""

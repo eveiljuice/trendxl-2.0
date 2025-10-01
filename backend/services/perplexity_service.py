@@ -34,17 +34,27 @@ class PerplexityService:
         self.model = settings.perplexity_model
         self.temperature = settings.perplexity_temperature
         self.max_tokens = settings.perplexity_max_tokens
+        self.initialized = False
 
         # HTTP client with timeout and retry configuration
-        self.client = httpx.AsyncClient(
-            timeout=httpx.Timeout(60.0),
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-        )
-
-        logger.info("✅ Perplexity service initialized with Sonar model")
+        try:
+            if self.api_key and len(self.api_key) > 20:
+                self.client = httpx.AsyncClient(
+                    timeout=httpx.Timeout(60.0),
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json"
+                    }
+                )
+                self.initialized = True
+                logger.info("✅ Perplexity service initialized with Sonar model")
+            else:
+                self.client = None
+                logger.warning("⚠️ Perplexity API key not configured - service disabled")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize Perplexity client: {e}")
+            self.client = None
+            self.initialized = False
 
     async def analyze_user_niche(
         self,

@@ -24,7 +24,8 @@ class ContentRelevanceService:
 
     def __init__(self):
         """Initialize the content relevance service"""
-        self.openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
+        self.openai_client = None
+        self.initialized = False
         self.vision_model = settings.openai_vision_model
         self.temperature = settings.openai_vision_temperature
         self.max_tokens = settings.openai_vision_max_tokens
@@ -36,7 +37,16 @@ class ContentRelevanceService:
             limits=httpx.Limits(max_connections=10)
         )
 
-        logger.info("✅ Content Relevance Service initialized with GPT-4 Vision")
+        try:
+            if settings.openai_api_key and len(settings.openai_api_key) > 20:
+                self.openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
+                self.initialized = True
+                logger.info("✅ Content Relevance Service initialized with GPT-4 Vision")
+            else:
+                logger.warning("⚠️ OpenAI API key not configured - content relevance disabled")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize Content Relevance Service: {e}")
+            self.initialized = False
 
     async def analyze_trends_relevance(
         self,

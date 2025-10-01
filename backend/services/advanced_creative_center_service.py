@@ -26,18 +26,27 @@ class AdvancedCreativeCenterService:
         self.model = settings.perplexity_model
         self.temperature = settings.perplexity_temperature
         self.max_tokens = 800  # Increased for detailed responses
+        self.client = None
+        self.initialized = False
 
         # HTTP client with timeout and retry configuration
-        self.client = httpx.AsyncClient(
-            # Increased timeout for complex operations
-            timeout=httpx.Timeout(120.0),
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-        )
-
-        logger.info("✅ Advanced Creative Center service initialized")
+        try:
+            if self.api_key and len(self.api_key) > 20:
+                self.client = httpx.AsyncClient(
+                    # Increased timeout for complex operations
+                    timeout=httpx.Timeout(120.0),
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json"
+                    }
+                )
+                self.initialized = True
+                logger.info("✅ Advanced Creative Center service initialized")
+            else:
+                logger.warning("⚠️ Perplexity API key not configured - creative center disabled")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize Advanced Creative Center Service: {e}")
+            self.initialized = False
 
     async def discover_hashtags_with_navigation(
         self,

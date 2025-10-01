@@ -17,11 +17,21 @@ class OpenAIService:
 
     def __init__(self):
         """Initialize OpenAI client"""
-        self.client = OpenAI(api_key=settings.openai_api_key)
+        self.client = None
+        self.initialized = False
         self.model = settings.openai_model
         self.temperature = settings.openai_temperature
         self.max_tokens = settings.openai_max_tokens
-        logger.info(f"OpenAI service initialized with model: {self.model}")
+        try:
+            if settings.openai_api_key and len(settings.openai_api_key) > 20:
+                self.client = OpenAI(api_key=settings.openai_api_key)
+                self.initialized = True
+                logger.info(f"✅ OpenAI service initialized with model: {self.model}")
+            else:
+                logger.warning("⚠️ OpenAI API key not configured - service disabled")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize OpenAI client: {e}")
+            self.initialized = False
 
     async def analyze_posts_for_hashtags(
         self,
