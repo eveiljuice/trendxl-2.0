@@ -104,11 +104,15 @@ async def lifespan(app: FastAPI):
     await content_relevance_service.close()
 
 # Create FastAPI app
+# Check if running in serverless environment (Vercel)
+import os
+is_serverless = os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME")
+
 app = FastAPI(
     title="TrendXL 2.0 Backend API",
     description="TikTok Trend Analysis API using Ensemble Data and OpenAI",
     version="2.0.0",
-    lifespan=lifespan
+    lifespan=None if is_serverless else lifespan
 )
 
 # CORS middleware
