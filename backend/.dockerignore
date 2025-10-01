@@ -1,8 +1,10 @@
+# Backend .dockerignore
 # Python cache
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+.Python
 
 # Virtual environments
 env/
@@ -10,17 +12,11 @@ venv/
 ENV/
 .venv/
 
-# Environment files
-.env
-.env.local
-*.env
-
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-trendxl_users.db
-trendxl.db
+# Testing
+tests/
+.pytest_cache/
+.coverage
+*.db-journal
 
 # IDE
 .vscode/
@@ -28,31 +24,22 @@ trendxl.db
 *.swp
 *.swo
 *~
-.DS_Store
 
 # Git
 .git/
 .gitignore
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-tests/__pycache__/
-
-# Documentation
-*.md
-docs/
-
 # Logs
 *.log
 
-# Temporary files
-tmp/
-temp/
-*.tmp
+# Docs
+*.md
 
-# Build artifacts
-dist/
-build/
-*.egg-info/
+# Environment files
+.env.local
+.env.*.local
+
+# Keep these important files:
+# - requirements.txt ✓
+# - *.py files ✓
+# - main.py ✓
