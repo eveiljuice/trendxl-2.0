@@ -4,18 +4,16 @@
 [[services]]
 name = "backend"
 root = "backend"
-dockerfile = "Dockerfile"
 
 [services.healthcheck]
 path = "/health"
 timeout = 30
 interval = 30
 
-# Frontend Service  
+# Frontend Service
 [[services]]
 name = "frontend"
 root = "."
-dockerfile = "Dockerfile"
 
 [services.healthcheck]
 path = "/health"
