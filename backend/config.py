@@ -92,8 +92,10 @@ class Settings(BaseSettings):
     perplexity_temperature: float = 0.2
     perplexity_max_tokens: int = 300
 
+    # Conditionally load .env file only if it exists (not in Vercel serverless)
+    _env_file_path = os.path.join(os.path.dirname(__file__), ".env")
     model_config = ConfigDict(
-        env_file=".env",  # Only backend .env file
+        env_file=_env_file_path if os.path.exists(_env_file_path) else None,
         case_sensitive=False,
         env_file_encoding='utf-8',
         extra='ignore'  # Ignore extra fields from environment

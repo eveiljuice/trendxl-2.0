@@ -1,6 +1,7 @@
 """
 Database setup and models for authentication
 """
+import os
 import sqlite3
 from datetime import datetime, timedelta
 from typing import Optional
@@ -341,7 +342,6 @@ def get_user_token_usage_by_period(
 
 # Initialize database on module import
 # Skip database initialization in serverless environment (Vercel)
-import os
 if not (os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME")):
     try:
         init_db()
@@ -349,4 +349,5 @@ if not (os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME")):
     except Exception as e:
         logger.error(f"❌ Failed to initialize database: {e}")
 else:
-    logger.warning("⚠️ Running in serverless environment - skipping SQLite initialization. Use cloud database for production.")
+    logger.warning(
+        "⚠️ Running in serverless environment - skipping SQLite initialization. Use cloud database for production.")
