@@ -1,10 +1,17 @@
 """
-Minimal test handler for Vercel
+Minimal FastAPI test for Vercel
 """
+from fastapi import FastAPI
+from mangum import Mangum
 
-def handler(event, context):
+app = FastAPI()
+
+@app.get("/test")
+def test():
     return {
-        'statusCode': 200,
-        'body': '{"status": "ok", "message": "Minimal Python handler works!"}'
+        "status": "ok", 
+        "message": "Minimal Python FastAPI handler works on Vercel!"
     }
 
+# Vercel handler
+handler = Mangum(app, lifespan="off")
