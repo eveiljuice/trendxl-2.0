@@ -1,6 +1,7 @@
 """
 TrendXL 2.0 Backend - FastAPI Application
 """
+import os
 import logging
 import asyncio
 from contextlib import asynccontextmanager
@@ -105,7 +106,6 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI app
 # Check if running in serverless environment (Vercel)
-import os
 is_serverless = os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME")
 
 app = FastAPI(

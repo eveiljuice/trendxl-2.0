@@ -340,7 +340,13 @@ def get_user_token_usage_by_period(
 
 
 # Initialize database on module import
-try:
-    init_db()
-except Exception as e:
-    logger.error(f"❌ Failed to initialize database: {e}")
+# Skip database initialization in serverless environment (Vercel)
+import os
+if not (os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME")):
+    try:
+        init_db()
+        logger.info("✅ Database initialized successfully")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize database: {e}")
+else:
+    logger.warning("⚠️ Running in serverless environment - skipping SQLite initialization. Use cloud database for production.")
