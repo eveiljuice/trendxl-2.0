@@ -53,7 +53,7 @@ class PerplexityService:
         recent_posts_content: list[str],
         follower_count: int = 0,
         video_count: int = 0
-    ) -> NicheAnalysis:
+    ) -> tuple[NicheAnalysis, Dict[str, int]]:
         """
         Analyze user niche based on profile and content data
 
@@ -65,7 +65,7 @@ class PerplexityService:
             video_count: Number of videos posted
 
         Returns:
-            NicheAnalysis with detailed niche information
+            Tuple of (NicheAnalysis with detailed niche information, token_usage dict)
         """
         logger.info(
             f"🔍 Analyzing niche for @{username} using Perplexity Sonar")
@@ -92,12 +92,12 @@ class PerplexityService:
 
             logger.info(
                 f"✅ Niche analysis completed for @{username}: {niche_analysis.niche_category}")
-            return niche_analysis
+            return niche_analysis, token_usage
 
         except Exception as e:
             logger.error(f"❌ Niche analysis failed for @{username}: {e}")
-            # Return fallback analysis
-            return self._create_fallback_analysis(username, bio)
+            # Return fallback analysis with zero tokens
+            return self._create_fallback_analysis(username, bio), {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
     def _create_niche_analysis_prompt(
         self,
@@ -348,7 +348,7 @@ Focus on being specific and actionable. The niche should be clear enough to reco
         recent_posts_content: list[str],
         follower_count: int = 0,
         video_count: int = 0
-    ) -> Dict[str, str]:
+    ) -> tuple[Dict[str, str], Dict[str, int]]:
         """
         Analyze TikTok account to determine its country/region of origin
 
@@ -360,7 +360,7 @@ Focus on being specific and actionable. The niche should be clear enough to reco
             video_count: Number of videos posted
 
         Returns:
-            Dict with country, country_code, and language
+            Tuple of (Dict with country, country_code, and language, token_usage dict)
         """
         logger.info(f"🌍 Analyzing TikTok account origin for @{username}")
 
@@ -396,7 +396,8 @@ Confidence: [High/Medium/Low - how confident you are in this assessment]
 Be specific and provide your best assessment even with limited information."""
 
             response, token_usage = await self._make_api_request(prompt)
-            return self._parse_account_origin_response(response)
+            result = self._parse_account_origin_response(response)
+            return result, token_usage
 
         except Exception as e:
             logger.error(
@@ -406,7 +407,7 @@ Be specific and provide your best assessment even with limited information."""
                 "country_code": "US",
                 "language": "en",
                 "confidence": "Low"
-            }
+            }, {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
     def _parse_account_origin_response(self, response: str) -> Dict[str, str]:
         """Parse account origin analysis response"""

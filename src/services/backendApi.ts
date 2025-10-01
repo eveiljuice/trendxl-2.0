@@ -489,3 +489,101 @@ export async function analyzeCreativeCenterComplete(
     throw new Error(`Failed to analyze Creative Center for profile: "${profileUrl}"`);
   }
 }
+
+/**
+ * Get token usage summary for the current user
+ */
+export async function getTokenUsageSummary(authToken: string): Promise<any> {
+  try {
+    const client = createBackendClient();
+    const response = await client.get('/api/v1/usage/summary', {
+      headers: {
+        Authorization: `Bearer ${authToken}`
+      }
+    });
+    
+    return response.data.data;
+  } catch (error) {
+    console.error('Token usage summary error:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 401) {
+        throw new Error('Authentication required');
+      } else if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+    }
+    
+    throw new Error('Failed to get token usage summary');
+  }
+}
+
+/**
+ * Get detailed token usage history for the current user
+ */
+export async function getTokenUsageHistory(
+  authToken: string,
+  limit: number = 50,
+  offset: number = 0
+): Promise<any> {
+  try {
+    const client = createBackendClient();
+    const response = await client.get('/api/v1/usage/history', {
+      headers: {
+        Authorization: `Bearer ${authToken}`
+      },
+      params: {
+        limit,
+        offset
+      }
+    });
+    
+    return response.data.data;
+  } catch (error) {
+    console.error('Token usage history error:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 401) {
+        throw new Error('Authentication required');
+      } else if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+    }
+    
+    throw new Error('Failed to get token usage history');
+  }
+}
+
+/**
+ * Get token usage for a specific period
+ */
+export async function getTokenUsageByPeriod(
+  authToken: string,
+  periodDays: number = 30
+): Promise<any> {
+  try {
+    const client = createBackendClient();
+    const response = await client.get('/api/v1/usage/period', {
+      headers: {
+        Authorization: `Bearer ${authToken}`
+      },
+      params: {
+        period_days: periodDays
+      }
+    });
+    
+    return response.data.data;
+  } catch (error) {
+    console.error('Token usage by period error:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 401) {
+        throw new Error('Authentication required');
+      } else if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+    }
+    
+    throw new Error('Failed to get token usage by period');
+  }
+}

@@ -43,7 +43,8 @@ from auth_service import (
 )
 from database import (
     create_user, get_user_by_email, get_user_by_username, get_user_by_id,
-    update_last_login, update_user_profile
+    update_last_login, update_user_profile,
+    record_token_usage, get_user_token_usage, get_user_token_summary, get_user_token_usage_by_period
 )
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
@@ -235,7 +236,8 @@ async def get_status():
 
 @app.post("/api/v1/analyze", response_model=TrendAnalysisResponse)
 async def analyze_trends(
-    request: TrendAnalysisRequest
+    request: TrendAnalysisRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
     """
     Analyze TikTok profile trends
@@ -245,11 +247,26 @@ async def analyze_trends(
     2. Analyzes posts with AI to extract relevant hashtags  
     3. Searches trending videos for each hashtag
     4. Returns comprehensive analysis results
+
+    Requires authentication. Records token usage for the user.
     """
     try:
+        # Get current user (optional - analysis can work without auth)
+        current_user = None
+        if credentials:
+            try:
+                token_data = decode_access_token(credentials.credentials)
+                current_user = get_user_by_id(token_data["user_id"])
+            except:
+                # If token is invalid, continue without user
+                pass
+
         print(f"\n{'='*80}")
         print(f"🚀 BACKEND: NEW ANALYSIS REQUEST RECEIVED!")
         print(f"🎯 Profile URL: {request.profile_url}")
+        if current_user:
+            print(
+                f"👤 User: {current_user['username']} (ID: {current_user['id']})")
         print(f"{'='*80}\n")
         logger.info(f"🎯 Trend analysis requested for: {request.profile_url}")
 
@@ -276,6 +293,27 @@ async def analyze_trends(
 
         print(f"✅ BACKEND: Analysis completed for @{username}")
         print(f"   - Found {len(result.trends)} trends")
+
+        # Record token usage for authenticated users
+        if current_user and result.token_usage:
+            try:
+                record_token_usage(
+                    user_id=current_user["id"],
+                    openai_prompt_tokens=result.token_usage.openai_prompt_tokens,
+                    openai_completion_tokens=result.token_usage.openai_completion_tokens,
+                    perplexity_prompt_tokens=result.token_usage.perplexity_prompt_tokens,
+                    perplexity_completion_tokens=result.token_usage.perplexity_completion_tokens,
+                    ensemble_units=result.token_usage.ensemble_units,
+                    total_cost_estimate=result.token_usage.total_cost_estimate,
+                    profile_analyzed=username
+                )
+                print(
+                    f"💾 Token usage recorded for user {current_user['username']}")
+                logger.info(
+                    f"💾 Token usage recorded for user {current_user['id']}")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to record token usage: {e}")
+
         print(f"{'='*80}\n")
         logger.info(f"✅ Analysis completed for @{username}")
         return result
@@ -813,6 +851,160 @@ async def update_profile(
         raise
     except Exception as e:
         logger.error(f"❌ Profile update failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Token usage endpoints
+
+
+@app.get("/api/v1/usage/summary")
+async def get_token_usage_summary(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """
+    Get aggregated token usage summary for the current user
+
+    Returns:
+    - Total analyses count
+    - Total tokens used for each service
+    - Total estimated cost
+    - First and last analysis timestamps
+    """
+    try:
+        # Verify token
+        if not credentials:
+            raise HTTPException(
+                status_code=401, detail="Authentication required")
+
+        token_data = decode_access_token(credentials.credentials)
+        current_user = get_user_by_id(token_data["user_id"])
+
+        if not current_user:
+            raise HTTPException(
+                status_code=401, detail="Invalid authentication")
+
+        # Get token usage summary
+        summary = get_user_token_summary(current_user["id"])
+
+        logger.info(
+            f"📊 Token usage summary requested by user {current_user['id']}")
+
+        return {
+            "success": True,
+            "data": summary
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get token usage summary: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/usage/history")
+async def get_token_usage_history(
+    limit: int = 50,
+    offset: int = 0,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """
+    Get detailed token usage history for the current user
+
+    Query params:
+    - limit: Number of records to return (default: 50, max: 100)
+    - offset: Offset for pagination (default: 0)
+
+    Returns:
+    - List of token usage records with timestamps
+    """
+    try:
+        # Verify token
+        if not credentials:
+            raise HTTPException(
+                status_code=401, detail="Authentication required")
+
+        token_data = decode_access_token(credentials.credentials)
+        current_user = get_user_by_id(token_data["user_id"])
+
+        if not current_user:
+            raise HTTPException(
+                status_code=401, detail="Invalid authentication")
+
+        # Limit max results
+        limit = min(limit, 100)
+
+        # Get token usage history
+        history = get_user_token_usage(current_user["id"], limit, offset)
+
+        logger.info(
+            f"📜 Token usage history requested by user {current_user['id']} (limit={limit}, offset={offset})")
+
+        return {
+            "success": True,
+            "data": {
+                "records": history,
+                "count": len(history),
+                "limit": limit,
+                "offset": offset
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get token usage history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/usage/period")
+async def get_token_usage_by_period(
+    period_days: int = 30,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """
+    Get token usage summary for a specific time period
+
+    Query params:
+    - period_days: Number of days to include (default: 30)
+
+    Returns:
+    - Analyses count in period
+    - Total tokens used for each service in period
+    - Total estimated cost in period
+    """
+    try:
+        # Verify token
+        if not credentials:
+            raise HTTPException(
+                status_code=401, detail="Authentication required")
+
+        token_data = decode_access_token(credentials.credentials)
+        current_user = get_user_by_id(token_data["user_id"])
+
+        if not current_user:
+            raise HTTPException(
+                status_code=401, detail="Invalid authentication")
+
+        # Validate period
+        if period_days < 1 or period_days > 365:
+            raise HTTPException(
+                status_code=400, detail="period_days must be between 1 and 365")
+
+        # Get token usage for period
+        usage = get_user_token_usage_by_period(current_user["id"], period_days)
+
+        logger.info(
+            f"📅 Token usage by period requested by user {current_user['id']} (period={period_days} days)")
+
+        return {
+            "success": True,
+            "data": usage
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get token usage by period: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

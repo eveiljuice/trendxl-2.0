@@ -80,7 +80,7 @@ class TrendAnalysisService:
             # Step 1: Get profile information (with caching)
             print(f"📊 Step 1: Fetching profile...")
             logger.info("📊 Step 1: Fetching profile information...")
-            profile = await self._get_cached_profile(username)
+            profile = await self._get_cached_profile(username, token_tracker)
             print(f"✅ Profile fetched: @{profile.username}")
 
             # Step 2: Get user's recent posts (with caching)
@@ -135,13 +135,19 @@ class TrendAnalysisService:
                     recent_captions = [
                         post.caption for post in posts if post.caption][:10]
 
-                    account_origin = await perplexity_service.analyze_tiktok_account_origin(
+                    account_origin, perplexity_tokens = await perplexity_service.analyze_tiktok_account_origin(
                         username=username,
                         bio=profile.bio or "",
                         recent_posts_content=recent_captions,
                         follower_count=profile.follower_count,
                         video_count=profile.video_count
                     )
+
+                    # Track Perplexity tokens for account origin analysis
+                    token_tracker["perplexity_prompt_tokens"] += perplexity_tokens.get(
+                        "prompt_tokens", 0)
+                    token_tracker["perplexity_completion_tokens"] += perplexity_tokens.get(
+                        "completion_tokens", 0)
 
                     # Create more specific search query based on profile niche
                     niche_query = f"{profile.niche_category if profile.niche_category else 'content creation'} hashtags"
@@ -383,7 +389,11 @@ class TrendAnalysisService:
             logger.error(f"❌ Trend analysis failed for @{username}: {e}")
             raise Exception(f"Analysis failed for @{username}: {str(e)}")
 
-    async def _get_cached_profile(self, username: str) -> TikTokProfile:
+    async def _get_cached_profile(
+        self,
+        username: str,
+        token_tracker: Optional[Dict[str, int]] = None
+    ) -> TikTokProfile:
         """Get profile with caching and niche analysis"""
         cache_key = f"profile:{username}"
 
@@ -396,8 +406,8 @@ class TrendAnalysisService:
         # Fetch from API
         profile = await self.ensemble_service.get_profile(username)
 
-        # Enhance profile with niche analysis
-        profile = await self._enhance_profile_with_niche(profile, username)
+        # Enhance profile with niche analysis (with token tracking)
+        profile = await self._enhance_profile_with_niche(profile, username, token_tracker)
 
         # Cache the enhanced result
         await cache_service.set("profile", username, profile.model_dump())
@@ -422,7 +432,12 @@ class TrendAnalysisService:
 
         return posts
 
-    async def _enhance_profile_with_niche(self, profile: TikTokProfile, username: str) -> TikTokProfile:
+    async def _enhance_profile_with_niche(
+        self,
+        profile: TikTokProfile,
+        username: str,
+        token_tracker: Optional[Dict[str, int]] = None
+    ) -> TikTokProfile:
         """Enhance profile with niche analysis using Perplexity"""
         try:
             logger.info(
@@ -437,13 +452,20 @@ class TrendAnalysisService:
                 f"📱 Found {len(post_captions)} posts with captions for niche analysis")
 
             # Analyze niche using Perplexity
-            niche_analysis = await perplexity_service.analyze_user_niche(
+            niche_analysis, perplexity_tokens = await perplexity_service.analyze_user_niche(
                 username=username,
                 bio=profile.bio,
                 recent_posts_content=post_captions,
                 follower_count=profile.follower_count,
                 video_count=profile.video_count
             )
+
+            # Track Perplexity tokens if tracker provided
+            if token_tracker is not None:
+                token_tracker["perplexity_prompt_tokens"] += perplexity_tokens.get(
+                    "prompt_tokens", 0)
+                token_tracker["perplexity_completion_tokens"] += perplexity_tokens.get(
+                    "completion_tokens", 0)
 
             # Update profile with niche information
             profile.niche_category = niche_analysis.niche_category
