@@ -28,8 +28,7 @@
   ],
   "functions": {
     "api/index.py": {
-      "maxDuration": 60,
-      "memory": 1024
+      "maxDuration": 60
     },
     "api/test.py": {
       "maxDuration": 10
