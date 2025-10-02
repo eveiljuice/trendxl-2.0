@@ -6,9 +6,11 @@ import {
   Button,
   Text,
   HStack,
+  Heading,
 } from '@chakra-ui/react';
-import { Mail, Lock, User, UserPlus } from 'lucide-react';
+import { Mail, Lock, User, UserPlus, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { parseAuthError, type ErrorDetails } from '../utils/errorMessages';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -31,31 +33,46 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [registerFullName, setRegisterFullName] = useState('');
   const [registerLoading, setRegisterLoading] = useState(false);
 
-  // Error states
-  const [loginError, setLoginError] = useState('');
-  const [registerError, setRegisterError] = useState('');
+  // Error states with details
+  const [loginError, setLoginError] = useState<ErrorDetails | null>(null);
+  const [registerError, setRegisterError] = useState<ErrorDetails | null>(null);
 
   const showToast = (title: string, description: string, status: 'success' | 'error') => {
-    // Simple toast replacement - you can enhance this
     console.log(`${status.toUpperCase()}: ${title} - ${description}`);
-    alert(`${title}\n${description}`);
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoginError('');
+    setLoginError(null);
     setLoginLoading(true);
 
     try {
       await login(loginEmail, loginPassword);
-      showToast('Welcome back!', 'You have successfully logged in.', 'success');
+      showToast('Добро пожаловать!', 'Вы успешно вошли в систему.', 'success');
       onClose();
       // Reset form
       setLoginEmail('');
       setLoginPassword('');
     } catch (error: any) {
-      setLoginError(error.message || 'Login failed');
-      showToast('Login failed', error.message || 'Please check your credentials and try again.', 'error');
+      const errorDetails = parseAuthError(error);
+      setLoginError(errorDetails);
+      showToast(errorDetails.title, errorDetails.message, 'error');
+      
+      // Auto-switch to registration if user not found
+      if (errorDetails.actionType === 'switch-tab') {
+        const errorLower = (error?.response?.data?.detail || error?.message || '').toLowerCase();
+        if (errorLower.includes('not found') || errorLower.includes('does not exist')) {
+          // Suggest switching to registration
+          setTimeout(() => {
+            if (window.confirm(`${errorDetails.message}\n\nПерейти к регистрации?`)) {
+              setActiveTab('register');
+              setLoginError(null);
+              // Pre-fill email
+              setRegisterEmail(loginEmail);
+            }
+          }, 500);
+        }
+      }
     } finally {
       setLoginLoading(false);
     }
@@ -63,25 +80,35 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setRegisterError('');
+    setRegisterError(null);
     setRegisterLoading(true);
 
     // Basic validation
     if (registerPassword.length < 6) {
-      setRegisterError('Password must be at least 6 characters');
+      setRegisterError({
+        title: 'Слишком короткий пароль',
+        message: 'Пароль должен содержать минимум 6 символов.',
+        action: 'Попробовать снова',
+        actionType: 'retry'
+      });
       setRegisterLoading(false);
       return;
     }
 
     if (registerUsername.length < 3) {
-      setRegisterError('Username must be at least 3 characters');
+      setRegisterError({
+        title: 'Слишком короткое имя',
+        message: 'Имя пользователя должно содержать минимум 3 символа.',
+        action: 'Попробовать снова',
+        actionType: 'retry'
+      });
       setRegisterLoading(false);
       return;
     }
 
     try {
       await register(registerEmail, registerUsername, registerPassword, registerFullName);
-      showToast('Account created!', 'Welcome to Trendzl!', 'success');
+      showToast('Аккаунт создан!', 'Добро пожаловать в Trendzl!', 'success');
       onClose();
       // Reset form
       setRegisterEmail('');
@@ -89,8 +116,25 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       setRegisterPassword('');
       setRegisterFullName('');
     } catch (error: any) {
-      setRegisterError(error.message || 'Registration failed');
-      showToast('Registration failed', error.message || 'Please try again.', 'error');
+      const errorDetails = parseAuthError(error);
+      setRegisterError(errorDetails);
+      showToast(errorDetails.title, errorDetails.message, 'error');
+      
+      // Auto-switch to login if user already exists
+      if (errorDetails.actionType === 'switch-tab') {
+        const errorLower = (error?.response?.data?.detail || error?.message || '').toLowerCase();
+        if (errorLower.includes('already') || errorLower.includes('exists')) {
+          // Suggest switching to login
+          setTimeout(() => {
+            if (window.confirm(`${errorDetails.message}\n\nПерейти к входу?`)) {
+              setActiveTab('login');
+              setRegisterError(null);
+              // Pre-fill email
+              setLoginEmail(registerEmail);
+            }
+          }, 500);
+        }
+      }
     } finally {
       setRegisterLoading(false);
     }
@@ -214,12 +258,42 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                   size="lg"
                   className="font-jetbrains"
                 />
-                {loginError && (
-                  <Text color="red.500" fontSize="sm" mt={1}>
-                    {loginError}
-                  </Text>
-                )}
               </Box>
+
+              {/* Enhanced Error Display */}
+              {loginError && (
+                <Box 
+                  bg="red.50" 
+                  borderLeft="4px solid"
+                  borderColor="red.500"
+                  p={4}
+                  borderRadius="md"
+                >
+                  <HStack spacing={2} mb={2}>
+                    <AlertCircle className="w-5 h-5 text-red-500" />
+                    <Heading size="sm" className="font-orbitron">
+                      {loginError.title}
+                    </Heading>
+                  </HStack>
+                  <Text fontSize="sm" className="font-inter" mb={loginError.action ? 3 : 0}>
+                    {loginError.message}
+                  </Text>
+                  {loginError.action && loginError.actionType === 'switch-tab' && (
+                    <Button
+                      size="sm"
+                      colorPalette="red"
+                      variant="outline"
+                      onClick={() => {
+                        setActiveTab('register');
+                        setLoginError(null);
+                        setRegisterEmail(loginEmail);
+                      }}
+                    >
+                      {loginError.action}
+                    </Button>
+                  )}
+                </Box>
+              )}
 
               <Button
                 type="submit"
@@ -227,7 +301,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 size="lg"
                 bg="black"
                 color="white"
-                isDisabled={loginLoading}
+                disabled={loginLoading}
                 _hover={{ bg: 'gray.800' }}
                 className="font-orbitron font-bold"
                 mt={2}
@@ -313,12 +387,42 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                   className="font-jetbrains"
                   minLength={6}
                 />
-                {registerError && (
-                  <Text color="red.500" fontSize="sm" mt={1}>
-                    {registerError}
-                  </Text>
-                )}
               </Box>
+
+              {/* Enhanced Error Display */}
+              {registerError && (
+                <Box 
+                  bg="red.50" 
+                  borderLeft="4px solid"
+                  borderColor="red.500"
+                  p={4}
+                  borderRadius="md"
+                >
+                  <HStack spacing={2} mb={2}>
+                    <AlertCircle className="w-5 h-5 text-red-500" />
+                    <Heading size="sm" className="font-orbitron">
+                      {registerError.title}
+                    </Heading>
+                  </HStack>
+                  <Text fontSize="sm" className="font-inter" mb={registerError.action ? 3 : 0}>
+                    {registerError.message}
+                  </Text>
+                  {registerError.action && registerError.actionType === 'switch-tab' && (
+                    <Button
+                      size="sm"
+                      colorPalette="red"
+                      variant="outline"
+                      onClick={() => {
+                        setActiveTab('login');
+                        setRegisterError(null);
+                        setLoginEmail(registerEmail);
+                      }}
+                    >
+                      {registerError.action}
+                    </Button>
+                  )}
+                </Box>
+              )}
 
               <Button
                 type="submit"
@@ -326,7 +430,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 size="lg"
                 bg="black"
                 color="white"
-                isDisabled={registerLoading}
+                disabled={registerLoading}
                 _hover={{ bg: 'gray.800' }}
                 className="font-orbitron font-bold"
                 mt={2}

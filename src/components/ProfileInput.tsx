@@ -129,7 +129,7 @@ const ProfileInput: React.FC<ProfileInputProps> = ({ onSubmit, isLoading }) => {
                         bg: "transparent"
                       }}
                       borderRadius={{ base: "lg", sm: "xl" }}
-                      isDisabled={isLoading}
+                      disabled={isLoading}
                       className="font-jetbrains"
                     />
                   </Box>
@@ -146,7 +146,7 @@ const ProfileInput: React.FC<ProfileInputProps> = ({ onSubmit, isLoading }) => {
                 {/* Enhanced Submit Button - адаптивные размеры */}
                 <Button
                   type="submit"
-                  isDisabled={isLoading || !input.trim()}
+                  disabled={isLoading || !input.trim()}
                   w="full"
                   size={{ base: "md", sm: "lg" }}
                   bg="black"

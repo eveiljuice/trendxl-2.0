@@ -161,3 +161,27 @@ export interface CreativeCenterAnalysisResponse {
   analysis_summary: string;
   metadata: Record<string, any>;
 }
+
+// Stripe Subscription Types
+export interface StripeSubscription {
+  subscription_id: string;
+  customer_id: string;
+  status: 'active' | 'canceled' | 'incomplete' | 'past_due' | 'trialing' | 'unpaid';
+  current_period_start: number;
+  current_period_end: number;
+  cancel_at_period_end: boolean;
+  canceled_at?: number;
+  plan_amount?: number;
+  plan_currency?: string;
+  plan_interval?: 'month' | 'year';
+}
+
+export interface SubscriptionInfo {
+  has_subscription: boolean;
+  subscription: StripeSubscription | null;
+}
+
+export interface CheckoutSessionResponse {
+  checkout_url: string;
+  session_id: string;
+}

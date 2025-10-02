@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import axios from 'axios';
+import { supabase } from '../lib/supabase';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 interface User {
-  id: number;
+  id: string; // UUID from Supabase
   email: string;
   username: string;
   full_name?: string;
@@ -44,16 +45,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load token from localStorage on mount
+  // Load token and check Supabase session on mount
   useEffect(() => {
-    const savedToken = localStorage.getItem('auth_token');
-    if (savedToken) {
-      setToken(savedToken);
-      // Verify token and load user
-      verifyToken(savedToken);
-    } else {
-      setIsLoading(false);
-    }
+    // Check Supabase session first
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setToken(session.access_token);
+        verifyToken(session.access_token);
+      } else {
+        // Fallback to localStorage token
+        const savedToken = localStorage.getItem('auth_token');
+        if (savedToken) {
+          setToken(savedToken);
+          verifyToken(savedToken);
+        } else {
+          setIsLoading(false);
+        }
+      }
+    });
+
+    // Listen to auth state changes from Supabase
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setToken(session.access_token);
+        localStorage.setItem('auth_token', session.access_token);
+        verifyToken(session.access_token);
+      } else {
+        setToken(null);
+        setUser(null);
+        localStorage.removeItem('auth_token');
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   // Verify token and load user data

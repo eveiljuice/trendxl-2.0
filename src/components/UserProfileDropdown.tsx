@@ -6,11 +6,13 @@ import {
   HStack,
   VStack,
 } from '@chakra-ui/react';
-import { User, Settings, LogOut, TrendingUp, ChevronDown } from 'lucide-react';
+import { User, LogOut, ChevronDown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const UserProfileDropdown: React.FC = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
 
   if (!user) return null;
@@ -130,45 +132,13 @@ const UserProfileDropdown: React.FC = () => {
                 variant="ghost"
                 onClick={() => {
                   setIsOpen(false);
-                  console.log('Open profile');
+                  navigate('/profile');
                 }}
                 className="font-inter"
               >
                 <HStack spacing={2}>
                   <User className="w-4 h-4" />
                   <Text>My Profile</Text>
-                </HStack>
-              </Button>
-
-              <Button
-                w="full"
-                justifyContent="flex-start"
-                variant="ghost"
-                onClick={() => {
-                  setIsOpen(false);
-                  console.log('Open saved trends');
-                }}
-                className="font-inter"
-              >
-                <HStack spacing={2}>
-                  <TrendingUp className="w-4 h-4" />
-                  <Text>Saved Trends</Text>
-                </HStack>
-              </Button>
-
-              <Button
-                w="full"
-                justifyContent="flex-start"
-                variant="ghost"
-                onClick={() => {
-                  setIsOpen(false);
-                  console.log('Open settings');
-                }}
-                className="font-inter"
-              >
-                <HStack spacing={2}>
-                  <Settings className="w-4 h-4" />
-                  <Text>Settings</Text>
                 </HStack>
               </Button>
 

@@ -25,6 +25,19 @@ class Settings(BaseSettings):
     # Optional API tokens for other services
     seatable_api_token: Optional[str] = Field(None, env="SEATABLE_API_TOKEN")
 
+    # Supabase Configuration
+    supabase_url: str = Field(default="", env="SUPABASE_URL")
+    supabase_anon_key: str = Field(default="", env="SUPABASE_ANON_KEY")
+    supabase_service_role_key: Optional[str] = Field(
+        None, env="SUPABASE_SERVICE_ROLE_KEY")
+
+    # Stripe Configuration
+    stripe_api_key: str = Field(default="", env="STRIPE_API_KEY")
+    stripe_webhook_secret: Optional[str] = Field(
+        None, env="STRIPE_WEBHOOK_SECRET")
+    # Price ID for $29/month subscription
+    stripe_price_id: str = Field(default="", env="STRIPE_PRICE_ID")
+
     # Server Configuration
     host: str = Field(default="0.0.0.0", env="HOST")
     port: int = Field(default=8000, env="PORT")

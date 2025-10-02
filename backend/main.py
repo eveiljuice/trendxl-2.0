@@ -37,17 +37,44 @@ from services.perplexity_service import perplexity_service
 from services.content_relevance_service import content_relevance_service
 from services.advanced_creative_center_service import advanced_creative_center_service
 from utils import RateLimiter, get_current_timestamp
-from auth_service import (
+from auth_service_supabase import (
     UserCreate, UserLogin, UserProfile, UserProfileUpdate, Token, TokenData,
     verify_password, get_password_hash, create_access_token, decode_access_token,
-    user_to_profile
+    user_to_profile, register_user, login_user, get_current_user as get_current_user_from_token,
+    update_user_profile as update_profile_service, logout_user
 )
-from database import (
-    create_user, get_user_by_email, get_user_by_username, get_user_by_id,
-    update_last_login, update_user_profile,
-    record_token_usage, get_user_token_usage, get_user_token_summary, get_user_token_usage_by_period
+# Import Supabase helpers
+from supabase_client import (
+    get_supabase,
+    insert_user as create_user_supabase,
+    get_user_by_link,
+    record_token_usage,
+    get_user_token_usage,
+    get_user_token_summary,
+    get_user_token_usage_by_period,
+    update_user_stripe_customer,
+    update_user_subscription,
+    get_user_subscription_info,
+    check_active_subscription,
+    get_user_by_stripe_customer_id
 )
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from error_responses import (
+    UserAlreadyExistsError,
+    UserNotFoundError,
+    InvalidCredentialsError,
+    parse_supabase_error
+)
+from stripe_service import (
+    create_stripe_customer,
+    create_subscription,
+    get_subscription,
+    get_customer_subscriptions,
+    cancel_subscription,
+    reactivate_subscription,
+    create_checkout_session,
+    create_public_payment_link
+)
 
 # Configure logging
 logging.basicConfig(
@@ -241,7 +268,7 @@ async def get_status():
 @app.post("/api/v1/analyze", response_model=TrendAnalysisResponse)
 async def analyze_trends(
     request: TrendAnalysisRequest,
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    current_user: Optional[UserProfile] = Depends(get_current_user)
 ):
     """
     Analyze TikTok profile trends
@@ -252,25 +279,42 @@ async def analyze_trends(
     3. Searches trending videos for each hashtag
     4. Returns comprehensive analysis results
 
-    Requires authentication. Records token usage for the user.
+    Requires active subscription for full analysis.
     """
     try:
-        # Get current user (optional - analysis can work without auth)
-        current_user = None
-        if credentials:
-            try:
-                token_data = decode_access_token(credentials.credentials)
-                current_user = get_user_by_id(token_data["user_id"])
-            except:
-                # If token is invalid, continue without user
-                pass
+        # Check if user has active subscription
+        if current_user:
+            has_active = await check_active_subscription(current_user.id)
+
+            if not has_active:
+                subscription_info = await get_user_subscription_info(current_user.id)
+                status = subscription_info.get(
+                    "stripe_subscription_status") if subscription_info else None
+
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "error": "Active subscription required",
+                        "message": "You need an active subscription to analyze profiles. Please subscribe to continue.",
+                        "subscription_status": status,
+                        "action": "subscribe"
+                    }
+                )
+        else:
+            # No authentication - require login
+            raise HTTPException(
+                status_code=401,
+                detail={
+                    "error": "Authentication required",
+                    "message": "Please log in to use trend analysis.",
+                    "action": "login"
+                }
+            )
 
         print(f"\n{'='*80}")
         print(f"🚀 BACKEND: NEW ANALYSIS REQUEST RECEIVED!")
         print(f"🎯 Profile URL: {request.profile_url}")
-        if current_user:
-            print(
-                f"👤 User: {current_user['username']} (ID: {current_user['id']})")
+        print(f"👤 User: {current_user.username} (ID: {current_user.id})")
         print(f"{'='*80}\n")
         logger.info(f"🎯 Trend analysis requested for: {request.profile_url}")
 
@@ -298,11 +342,11 @@ async def analyze_trends(
         print(f"✅ BACKEND: Analysis completed for @{username}")
         print(f"   - Found {len(result.trends)} trends")
 
-        # Record token usage for authenticated users
-        if current_user and result.token_usage:
+        # Record token usage
+        if result.token_usage:
             try:
-                record_token_usage(
-                    user_id=current_user["id"],
+                await record_token_usage(
+                    user_id=current_user.id,
                     openai_prompt_tokens=result.token_usage.openai_prompt_tokens,
                     openai_completion_tokens=result.token_usage.openai_completion_tokens,
                     perplexity_prompt_tokens=result.token_usage.perplexity_prompt_tokens,
@@ -312,9 +356,9 @@ async def analyze_trends(
                     profile_analyzed=username
                 )
                 print(
-                    f"💾 Token usage recorded for user {current_user['username']}")
+                    f"💾 Token usage recorded for user {current_user.username}")
                 logger.info(
-                    f"💾 Token usage recorded for user {current_user['id']}")
+                    f"💾 Token usage recorded for user {current_user.id}")
             except Exception as e:
                 logger.warning(f"⚠️ Failed to record token usage: {e}")
 
@@ -701,19 +745,17 @@ async def health_check():
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ) -> Optional[UserProfile]:
-    """Get current authenticated user from JWT token"""
+    """Get current authenticated user from Supabase JWT token"""
     if not credentials:
         return None
 
-    token_data = decode_access_token(credentials.credentials)
-    if not token_data or not token_data.user_id:
+    try:
+        # Get user from Supabase Auth token
+        user_data = await get_current_user_from_token(credentials.credentials)
+        return user_to_profile(user_data)
+    except Exception as e:
+        logger.error(f"Failed to get user from token: {e}")
         return None
-
-    user = get_user_by_id(token_data.user_id)
-    if not user:
-        return None
-
-    return user_to_profile(user)
 
 
 async def require_auth(
@@ -728,100 +770,146 @@ async def require_auth(
     return current_user
 
 
+async def require_subscription(
+    current_user: UserProfile = Depends(require_auth)
+) -> UserProfile:
+    """Require active subscription - raises 403 if no active subscription"""
+    has_active = await check_active_subscription(current_user.id)
+
+    if not has_active:
+        subscription_info = await get_user_subscription_info(current_user.id)
+        status = subscription_info.get(
+            "stripe_subscription_status") if subscription_info else None
+
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "Active subscription required",
+                "message": "You need an active subscription to use this feature. Please subscribe to continue.",
+                "subscription_status": status,
+                "action": "subscribe"
+            }
+        )
+
+    return current_user
+
+
 # Authentication endpoints
 
 @app.post("/api/v1/auth/register", response_model=Token)
 async def register(user_data: UserCreate):
-    """Register a new user"""
+    """Register a new user using Supabase Auth and create Stripe customer"""
     try:
-        # Check if user already exists
-        existing_user = get_user_by_email(user_data.email)
-        if existing_user:
-            raise HTTPException(
-                status_code=400,
-                detail="Email already registered"
-            )
-
-        existing_username = get_user_by_username(user_data.username)
-        if existing_username:
-            raise HTTPException(
-                status_code=400,
-                detail="Username already taken"
-            )
-
-        # Create user
-        hashed_password = get_password_hash(user_data.password)
-        user = create_user(
-            email=user_data.email,
-            username=user_data.username,
-            hashed_password=hashed_password,
-            full_name=user_data.full_name
-        )
-
-        # Update last login
-        update_last_login(user["id"])
-
-        # Create access token
-        access_token = create_access_token(data={"user_id": user["id"]})
-
-        # Return token and user profile
-        user_profile = user_to_profile(user)
-
+        # Register user with Supabase
+        result = await register_user(user_data)
         logger.info(f"✅ User registered: {user_data.username}")
 
+        # Convert user data to profile
+        try:
+            user_profile = user_to_profile(result["user"])
+        except Exception as profile_error:
+            logger.error(f"❌ Failed to create user profile: {profile_error}")
+            raise ValueError(f"Failed to create user profile: {profile_error}")
+
+        # Create Stripe customer for the new user (if Stripe is configured)
+        try:
+            if settings.stripe_api_key and settings.stripe_api_key.strip():
+                stripe_customer = await create_stripe_customer(
+                    email=user_data.email,
+                    username=user_data.username,
+                    user_id=user_profile.id
+                )
+
+                # Save Stripe customer ID to user profile
+                await update_user_stripe_customer(
+                    user_id=user_profile.id,
+                    stripe_customer_id=stripe_customer["customer_id"]
+                )
+
+                logger.info(
+                    f"✅ Stripe customer created for user {user_data.username}")
+            else:
+                logger.warning(
+                    "⚠️ Stripe not configured, skipping customer creation")
+        except Exception as stripe_error:
+            # Don't fail registration if Stripe setup fails
+            logger.error(
+                f"⚠️ Stripe customer creation failed (non-fatal): {stripe_error}")
+
         return Token(
-            access_token=access_token,
+            access_token=result["access_token"],
+            token_type=result.get("token_type", "bearer"),
             user=user_profile
         )
 
-    except HTTPException:
-        raise
+    except ValueError as e:
+        error_str = str(e).lower()
+        logger.error(f"❌ Registration ValueError: {e}")
+
+        # Return structured error based on error type
+        if "already" in error_str or "exists" in error_str:
+            raise UserAlreadyExistsError(user_data.email)
+        elif "email" in error_str and "invalid" in error_str:
+            raise HTTPException(status_code=400, detail=str(e))
+        elif "password" in error_str:
+            raise HTTPException(status_code=400, detail=str(e))
+        else:
+            raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"❌ Registration failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"❌ Registration unexpected error: {e}", exc_info=True)
+        # Try to parse Supabase error
+        try:
+            raise parse_supabase_error(e, context="register")
+        except:
+            raise HTTPException(
+                status_code=500, detail=f"Registration failed: {str(e)}")
 
 
 @app.post("/api/v1/auth/login", response_model=Token)
 async def login(credentials: UserLogin):
-    """Login with email and password"""
+    """Login with email and password using Supabase Auth"""
     try:
-        # Get user by email
-        user = get_user_by_email(credentials.email)
+        # Login with Supabase
+        result = await login_user(credentials)
+        logger.info(f"✅ User logged in: {credentials.email}")
 
-        if not user:
-            raise HTTPException(
-                status_code=401,
-                detail="Incorrect email or password"
-            )
+        # Convert user data to profile
+        try:
+            user_profile = user_to_profile(result["user"])
+            logger.debug(f"User profile created: {user_profile.email}")
+        except Exception as profile_error:
+            logger.error(f"❌ Failed to create user profile: {profile_error}")
+            raise ValueError(f"Failed to create user profile: {profile_error}")
 
-        # Verify password
-        if not verify_password(credentials.password, user["hashed_password"]):
-            raise HTTPException(
-                status_code=401,
-                detail="Incorrect email or password"
-            )
-
-        # Update last login
-        update_last_login(user["id"])
-
-        # Create access token
-        access_token = create_access_token(data={"user_id": user["id"]})
-
-        # Return token and user profile
-        user_profile = user_to_profile(user)
-
-        logger.info(f"✅ User logged in: {user['username']}")
-
-        return Token(
-            access_token=access_token,
+        token_response = Token(
+            access_token=result["access_token"],
+            token_type=result.get("token_type", "bearer"),
             user=user_profile
         )
 
-    except HTTPException:
-        raise
+        logger.debug(
+            f"Token response created successfully for {credentials.email}")
+        return token_response
+
+    except ValueError as e:
+        error_str = str(e).lower()
+        logger.error(f"❌ Login ValueError: {e}")
+
+        # Return structured error based on error type
+        if "not found" in error_str or "does not exist" in error_str:
+            raise UserNotFoundError(credentials.email)
+        elif "invalid" in error_str and ("password" in error_str or "credentials" in error_str):
+            raise InvalidCredentialsError()
+        else:
+            raise HTTPException(status_code=401, detail=str(e))
     except Exception as e:
-        logger.error(f"❌ Login failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"❌ Login unexpected error: {e}", exc_info=True)
+        # Try to parse Supabase error
+        try:
+            raise parse_supabase_error(e, context="login")
+        except:
+            raise HTTPException(
+                status_code=500, detail=f"Login failed: {str(e)}")
 
 
 @app.get("/api/v1/auth/me", response_model=UserProfile)
@@ -833,26 +921,20 @@ async def get_me(current_user: UserProfile = Depends(require_auth)):
 @app.put("/api/v1/auth/profile", response_model=UserProfile)
 async def update_profile(
     profile_data: UserProfileUpdate,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     current_user: UserProfile = Depends(require_auth)
 ):
-    """Update current user profile"""
+    """Update current user profile using Supabase"""
     try:
-        updated_user = update_user_profile(
-            user_id=current_user.id,
-            full_name=profile_data.full_name,
-            avatar_url=profile_data.avatar_url,
-            bio=profile_data.bio
-        )
-
-        if not updated_user:
-            raise HTTPException(status_code=404, detail="User not found")
+        # Update profile in Supabase
+        updated_user = await update_profile_service(credentials.credentials, profile_data)
 
         logger.info(f"✅ Profile updated: {current_user.username}")
 
         return user_to_profile(updated_user)
 
-    except HTTPException:
-        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"❌ Profile update failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -875,23 +957,14 @@ async def get_token_usage_summary(
     - First and last analysis timestamps
     """
     try:
-        # Verify token
-        if not credentials:
-            raise HTTPException(
-                status_code=401, detail="Authentication required")
-
-        token_data = decode_access_token(credentials.credentials)
-        current_user = get_user_by_id(token_data["user_id"])
-
-        if not current_user:
-            raise HTTPException(
-                status_code=401, detail="Invalid authentication")
+        # Get current user from token
+        user_profile = await get_current_user_from_token(credentials.credentials)
 
         # Get token usage summary
-        summary = get_user_token_summary(current_user["id"])
+        summary = await get_user_token_summary(user_profile["id"])
 
         logger.info(
-            f"📊 Token usage summary requested by user {current_user['id']}")
+            f"📊 Token usage summary requested by user {user_profile['id']}")
 
         return {
             "success": True,
@@ -922,26 +995,17 @@ async def get_token_usage_history(
     - List of token usage records with timestamps
     """
     try:
-        # Verify token
-        if not credentials:
-            raise HTTPException(
-                status_code=401, detail="Authentication required")
-
-        token_data = decode_access_token(credentials.credentials)
-        current_user = get_user_by_id(token_data["user_id"])
-
-        if not current_user:
-            raise HTTPException(
-                status_code=401, detail="Invalid authentication")
+        # Get current user from token
+        user_profile = await get_current_user_from_token(credentials.credentials)
 
         # Limit max results
         limit = min(limit, 100)
 
         # Get token usage history
-        history = get_user_token_usage(current_user["id"], limit, offset)
+        history = await get_user_token_usage(user_profile["id"], limit, offset)
 
         logger.info(
-            f"📜 Token usage history requested by user {current_user['id']} (limit={limit}, offset={offset})")
+            f"📜 Token usage history requested by user {user_profile['id']} (limit={limit}, offset={offset})")
 
         return {
             "success": True,
@@ -977,17 +1041,8 @@ async def get_token_usage_by_period(
     - Total estimated cost in period
     """
     try:
-        # Verify token
-        if not credentials:
-            raise HTTPException(
-                status_code=401, detail="Authentication required")
-
-        token_data = decode_access_token(credentials.credentials)
-        current_user = get_user_by_id(token_data["user_id"])
-
-        if not current_user:
-            raise HTTPException(
-                status_code=401, detail="Invalid authentication")
+        # Get current user from token
+        user_profile = await get_current_user_from_token(credentials.credentials)
 
         # Validate period
         if period_days < 1 or period_days > 365:
@@ -995,10 +1050,10 @@ async def get_token_usage_by_period(
                 status_code=400, detail="period_days must be between 1 and 365")
 
         # Get token usage for period
-        usage = get_user_token_usage_by_period(current_user["id"], period_days)
+        usage = await get_user_token_usage_by_period(user_profile["id"], period_days)
 
         logger.info(
-            f"📅 Token usage by period requested by user {current_user['id']} (period={period_days} days)")
+            f"📅 Token usage by period requested by user {user_profile['id']} (period={period_days} days)")
 
         return {
             "success": True,
@@ -1010,6 +1065,336 @@ async def get_token_usage_by_period(
     except Exception as e:
         logger.error(f"❌ Failed to get token usage by period: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Stripe subscription endpoints
+
+
+@app.get("/api/v1/subscription/info")
+async def get_subscription_info(
+    current_user: UserProfile = Depends(require_auth)
+):
+    """Get current user's subscription information"""
+    try:
+        # Get subscription info from database
+        db_subscription = await get_user_subscription_info(current_user.id)
+
+        if not db_subscription or not db_subscription.get("stripe_subscription_id"):
+            return {
+                "has_subscription": False,
+                "subscription": None
+            }
+
+        # Get latest subscription details from Stripe
+        subscription = await get_subscription(db_subscription["stripe_subscription_id"])
+
+        return {
+            "has_subscription": True,
+            "subscription": subscription
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Failed to get subscription info: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/subscription/checkout")
+async def create_subscription_checkout(
+    success_url: str,
+    cancel_url: str,
+    current_user: UserProfile = Depends(require_auth)
+):
+    """Create a Stripe Checkout session for subscription"""
+    try:
+        # Get user's Stripe customer ID
+        db_subscription = await get_user_subscription_info(current_user.id)
+
+        if not db_subscription or not db_subscription.get("stripe_customer_id"):
+            raise HTTPException(
+                status_code=400,
+                detail="Stripe customer not found. Please contact support."
+            )
+
+        # Create checkout session
+        session = await create_checkout_session(
+            customer_id=db_subscription["stripe_customer_id"],
+            success_url=success_url,
+            cancel_url=cancel_url
+        )
+
+        return {
+            "checkout_url": session["url"],
+            "session_id": session["session_id"]
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to create checkout session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/subscription/create-payment-link")
+async def create_payment_link_public(
+    user_email: Optional[str] = None,
+    success_url: Optional[str] = None,
+    cancel_url: Optional[str] = None
+):
+    """
+    Create a public payment link for subscription
+    Anyone can use this to subscribe - no authentication required
+    """
+    try:
+        # Use default URLs if not provided
+        if not success_url:
+            success_url = f"{settings.cors_origins[0]}/subscription/success?session_id={{CHECKOUT_SESSION_ID}}"
+        if not cancel_url:
+            cancel_url = f"{settings.cors_origins[0]}/"
+
+        # Create public payment link
+        payment_link = await create_public_payment_link(
+            user_email=user_email or "",
+            success_url=success_url,
+            cancel_url=cancel_url
+        )
+
+        return {
+            "success": True,
+            "payment_url": payment_link["url"],
+            "session_id": payment_link["session_id"],
+            "expires_at": payment_link["expires_at"]
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Failed to create public payment link: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/subscription/check")
+async def check_subscription_status(
+    current_user: UserProfile = Depends(require_auth)
+):
+    """Check if current user has an active subscription"""
+    try:
+        has_active = await check_active_subscription(current_user.id)
+
+        subscription_info = await get_user_subscription_info(current_user.id)
+
+        return {
+            "has_active_subscription": has_active,
+            "subscription_status": subscription_info.get("stripe_subscription_status") if subscription_info else None,
+            "subscription_end_date": subscription_info.get("subscription_end_date") if subscription_info else None
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Failed to check subscription: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/subscription/cancel")
+async def cancel_user_subscription(
+    immediate: bool = False,
+    current_user: UserProfile = Depends(require_auth)
+):
+    """Cancel user's subscription"""
+    try:
+        # Get user's subscription ID
+        db_subscription = await get_user_subscription_info(current_user.id)
+
+        if not db_subscription or not db_subscription.get("stripe_subscription_id"):
+            raise HTTPException(
+                status_code=404,
+                detail="No active subscription found"
+            )
+
+        # Cancel subscription in Stripe
+        result = await cancel_subscription(
+            subscription_id=db_subscription["stripe_subscription_id"],
+            immediate=immediate
+        )
+
+        # Update database
+        await update_user_subscription(
+            user_id=current_user.id,
+            subscription_id=result["subscription_id"],
+            status=result["status"]
+        )
+
+        return {
+            "success": True,
+            "message": "Subscription canceled successfully" if immediate else "Subscription will cancel at period end",
+            "subscription": result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to cancel subscription: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/subscription/reactivate")
+async def reactivate_user_subscription(
+    current_user: UserProfile = Depends(require_auth)
+):
+    """Reactivate a subscription that was set to cancel"""
+    try:
+        # Get user's subscription ID
+        db_subscription = await get_user_subscription_info(current_user.id)
+
+        if not db_subscription or not db_subscription.get("stripe_subscription_id"):
+            raise HTTPException(
+                status_code=404,
+                detail="No subscription found"
+            )
+
+        # Reactivate subscription in Stripe
+        result = await reactivate_subscription(
+            subscription_id=db_subscription["stripe_subscription_id"]
+        )
+
+        # Update database
+        await update_user_subscription(
+            user_id=current_user.id,
+            subscription_id=result["subscription_id"],
+            status=result["status"]
+        )
+
+        return {
+            "success": True,
+            "message": "Subscription reactivated successfully",
+            "subscription": result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to reactivate subscription: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Stripe webhook endpoint for handling subscription events
+@app.post("/api/v1/webhook/stripe")
+async def stripe_webhook(request: dict):
+    """Handle Stripe webhook events"""
+    try:
+        # TODO: Verify webhook signature in production
+        # from stripe import StripeClient
+        # client = StripeClient(settings.stripe_api_key)
+        # event = client.construct_event(payload, sig_header, settings.stripe_webhook_secret)
+
+        event_type = request.get("type")
+        data = request.get("data", {}).get("object", {})
+
+        logger.info(f"📨 Received Stripe webhook: {event_type}")
+
+        # Handle different event types
+        if event_type == "customer.subscription.created":
+            # New subscription created
+            subscription_id = data.get("id")
+            customer_id = data.get("customer")
+            status = data.get("status")
+            current_period_start = data.get("current_period_start")
+            current_period_end = data.get("current_period_end")
+
+            # Find user by Stripe customer ID
+            user = await get_user_by_stripe_customer_id(customer_id)
+            if user:
+                from datetime import datetime
+                await update_user_subscription(
+                    user_id=user["id"],
+                    subscription_id=subscription_id,
+                    status=status,
+                    start_date=datetime.fromtimestamp(
+                        current_period_start).isoformat() if current_period_start else None,
+                    end_date=datetime.fromtimestamp(
+                        current_period_end).isoformat() if current_period_end else None
+                )
+                logger.info(
+                    f"✅ Subscription created and saved: {subscription_id} for user {user['id']}")
+            else:
+                logger.warning(
+                    f"⚠️ User not found for Stripe customer: {customer_id}")
+
+        elif event_type == "customer.subscription.updated":
+            # Subscription updated (status change, renewal, etc.)
+            subscription_id = data.get("id")
+            customer_id = data.get("customer")
+            status = data.get("status")
+            current_period_start = data.get("current_period_start")
+            current_period_end = data.get("current_period_end")
+
+            # Find user by Stripe customer ID
+            user = await get_user_by_stripe_customer_id(customer_id)
+            if user:
+                from datetime import datetime
+                await update_user_subscription(
+                    user_id=user["id"],
+                    subscription_id=subscription_id,
+                    status=status,
+                    start_date=datetime.fromtimestamp(
+                        current_period_start).isoformat() if current_period_start else None,
+                    end_date=datetime.fromtimestamp(
+                        current_period_end).isoformat() if current_period_end else None
+                )
+                logger.info(
+                    f"✅ Subscription updated: {subscription_id} - {status} for user {user['id']}")
+            else:
+                logger.warning(
+                    f"⚠️ User not found for Stripe customer: {customer_id}")
+
+        elif event_type == "customer.subscription.deleted":
+            # Subscription canceled/ended
+            subscription_id = data.get("id")
+            customer_id = data.get("customer")
+
+            # Find user by Stripe customer ID
+            user = await get_user_by_stripe_customer_id(customer_id)
+            if user:
+                await update_user_subscription(
+                    user_id=user["id"],
+                    subscription_id=subscription_id,
+                    status="canceled"
+                )
+                logger.info(
+                    f"✅ Subscription canceled: {subscription_id} for user {user['id']}")
+            else:
+                logger.warning(
+                    f"⚠️ User not found for Stripe customer: {customer_id}")
+
+        elif event_type == "checkout.session.completed":
+            # Checkout completed - link customer to user if needed
+            session = data
+            customer_id = session.get("customer")
+            customer_email = session.get("customer_details", {}).get("email")
+            subscription_id = session.get("subscription")
+
+            logger.info(
+                f"✅ Checkout completed: session={session.get('id')}, customer={customer_id}, email={customer_email}")
+
+            # Try to find user by email and link Stripe customer
+            if customer_email and customer_id:
+                client = get_supabase()
+                # Find user by email in auth.users
+                try:
+                    # Search in profiles table
+                    response = client.table("profiles").select(
+                        "*").eq("email", customer_email).execute()
+                    if response.data:
+                        user = response.data[0]
+                        # Update Stripe customer ID if not set
+                        if not user.get("stripe_customer_id"):
+                            await update_user_stripe_customer(user["id"], customer_id)
+                            logger.info(
+                                f"✅ Linked Stripe customer {customer_id} to user {user['id']}")
+                except Exception as e:
+                    logger.error(f"❌ Failed to link customer: {e}")
+
+        return {"received": True}
+
+    except Exception as e:
+        logger.error(f"❌ Webhook processing failed: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # Root endpoint
@@ -1028,6 +1413,10 @@ async def root():
             "auth_login": "/api/v1/auth/login",
             "auth_me": "/api/v1/auth/me",
             "auth_profile": "/api/v1/auth/profile",
+            "subscription_info": "/api/v1/subscription/info",
+            "subscription_checkout": "/api/v1/subscription/checkout",
+            "subscription_cancel": "/api/v1/subscription/cancel",
+            "subscription_reactivate": "/api/v1/subscription/reactivate",
             "analyze": "/api/v1/analyze",
             "profile": "/api/v1/profile",
             "posts": "/api/v1/posts",
