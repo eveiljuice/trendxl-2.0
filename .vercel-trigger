@@ -1,0 +1,6 @@
+# Vercel Deployment Trigger
+# This file is used to force Vercel redeployment
+# Last updated: 2025-10-02 15:10:00 UTC
+
+DEPLOYMENT_TRIGGER=1759417800
+
