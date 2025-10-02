@@ -37,15 +37,13 @@ from services.perplexity_service import perplexity_service
 from services.content_relevance_service import content_relevance_service
 from services.advanced_creative_center_service import advanced_creative_center_service
 from utils import RateLimiter, get_current_timestamp
-from auth_service import (
+from auth_service_supabase import (
     UserCreate, UserLogin, UserProfile, UserProfileUpdate, Token, TokenData,
     verify_password, get_password_hash, create_access_token, decode_access_token,
-    user_to_profile
-)
-from database import (
-    create_user, get_user_by_email, get_user_by_username, get_user_by_id,
-    update_last_login, update_user_profile,
-    record_token_usage, get_user_token_usage, get_user_token_summary, get_user_token_usage_by_period
+    user_to_profile, create_user, get_user_by_email, get_user_by_username, 
+    get_user_by_id, update_last_login, update_user_profile,
+    record_token_usage, get_user_token_usage, get_user_token_summary, 
+    get_user_token_usage_by_period
 )
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 

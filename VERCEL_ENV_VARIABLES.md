@@ -19,6 +19,7 @@ VITE_SUPABASE_ANON_KEY=your-supabase-anon-key-here
 ```
 
 **Где взять:**
+
 - Откройте: https://supabase.com/dashboard/project/YOUR_PROJECT_ID/settings/api
 - `VITE_SUPABASE_URL` = Project URL
 - `VITE_SUPABASE_ANON_KEY` = anon / public key
@@ -34,6 +35,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key-here
 ```
 
 **Где взять:**
+
 - `SUPABASE_SERVICE_ROLE_KEY` = service_role key (тот же раздел, что выше)
 
 ### 3. Stripe (для подписок) - ОБЯЗАТЕЛЬНО
@@ -45,6 +47,7 @@ STRIPE_WEBHOOK_SECRET=whsec_xxxxx (опционально)
 ```
 
 **Где взять:**
+
 - `STRIPE_API_KEY`: https://dashboard.stripe.com/apikeys
 - `STRIPE_PRICE_ID`: https://dashboard.stripe.com/prices (создайте Price для $29/month)
 - `STRIPE_WEBHOOK_SECRET`: https://dashboard.stripe.com/webhooks (при настройке webhook)
@@ -58,6 +61,7 @@ PERPLEXITY_API_KEY=pplx-xxxxx (опционально)
 ```
 
 **Где взять:**
+
 - `ENSEMBLE_API_TOKEN`: https://dashboard.ensembledata.com/
 - `OPENAI_API_KEY`: https://platform.openai.com/api-keys
 - `PERPLEXITY_API_KEY`: https://www.perplexity.ai/settings/api
@@ -140,13 +144,16 @@ vercel env add OPENAI_API_KEY production
 ## ✅ Как проверить, что всё работает
 
 ### Откройте сайт:
+
 https://trendxl-2-0-01102025.vercel.app
 
 ### Проверьте консоль браузера (F12):
+
 - ❌ Если видите: `"⚠️ Supabase configuration missing"` → переменные не добавлены или имеют неправильные имена
 - ✅ Если ошибки нет → всё настроено правильно!
 
 ### Попробуйте зарегистрироваться:
+
 1. Нажмите "Sign Up"
 2. Введите email и пароль
 3. Если всё работает → Supabase настроен правильно! 🎉
@@ -154,14 +161,17 @@ https://trendxl-2-0-01102025.vercel.app
 ## 🐛 Troubleshooting
 
 ### Ошибка: "supabaseUrl is required"
+
 **Причина**: Не добавлены `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY`  
 **Решение**: Добавьте эти переменные с префиксом `VITE_` и пересоберите проект
 
 ### API возвращает 500
+
 **Причина**: Не добавлены backend переменные (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`)  
 **Решение**: Добавьте backend переменные БЕЗ префикса `VITE_`
 
 ### Stripe не работает
+
 **Причина**: Не добавлены `STRIPE_API_KEY` или `STRIPE_PRICE_ID`  
 **Решение**: Добавьте Stripe переменные
 
@@ -175,4 +185,3 @@ https://trendxl-2-0-01102025.vercel.app
 ---
 
 💡 **Совет**: Используйте разные ключи для Production и Preview окружений для безопасности!
-
