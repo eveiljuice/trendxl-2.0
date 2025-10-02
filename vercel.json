@@ -24,6 +24,14 @@
     {
       "source": "/simple",
       "destination": "/api/simple.py"
+    },
+    {
+      "source": "/diagnostic",
+      "destination": "/api/diagnostic.py"
+    },
+    {
+      "source": "/simple_test",
+      "destination": "/api/simple_test.py"
     }
   ],
   "functions": {
@@ -35,6 +43,12 @@
     },
     "api/debug.py": {
       "maxDuration": 30
+    },
+    "api/diagnostic.py": {
+      "maxDuration": 10
+    },
+    "api/simple_test.py": {
+      "maxDuration": 10
     }
   },
   "build": {
