@@ -239,6 +239,22 @@ export function formatPrice(amount: number, currency: string): string {
 }
 
 /**
+ * Alias for formatPrice - Format subscription price for display
+ */
+export const formatSubscriptionPrice = formatPrice;
+
+/**
+ * Format Unix timestamp to readable date
+ */
+export function formatPeriodDate(timestamp: number): string {
+  return new Date(timestamp * 1000).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+/**
  * Format subscription interval for display
  */
 export function formatInterval(interval: string): string {
