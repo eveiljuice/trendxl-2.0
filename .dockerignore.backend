@@ -1,0 +1,62 @@
+# Backend Dockerfile ignore file
+# Ignore frontend files when building backend
+
+# Frontend directories
+node_modules/
+dist/
+src/
+public/
+.vite/
+
+# Frontend config files
+package.json
+package-lock.json
+vite.config.ts
+tsconfig.json
+tsconfig.node.json
+tailwind.config.js
+postcss.config.js
+components.json
+
+# Frontend build artifacts
+*.html
+!backend/**/*.html
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/**/*.db
+backend/**/*.db-journal
+*.egg-info/
+.pytest_cache/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Docs
+*.md
+!backend/README.md
+
+# Tests
+tests/
+backend/tests/
+
+# Misc
+.DS_Store
+*.log

@@ -1,0 +1,46 @@
+services:
+  # Backend Service (Python FastAPI)
+  - type: web
+    name: trendxl-20-backend
+    env: python
+    region: frankfurt # или ohio
+    plan: free
+    branch: main
+    rootDir: ./backend
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHONPATH
+        value: /opt/render/project/src/backend
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - fromGroup: trendxl-api-keys
+
+  # Frontend Service (React Static Site)
+  - type: web
+    name: trendxl-20-frontend
+    env: static
+    branch: main
+    rootDir: .
+    buildCommand: "npm install && npm run build"
+    staticPublishPath: ./dist
+    envVars:
+      - key: BACKEND_HOST
+        fromService:
+          type: web
+          name: trendxl-20-backend
+          property: host
+      - key: VITE_BACKEND_API_URL
+        value: https://$(BACKEND_HOST)
+
+# Группа переменных окружения для API ключей
+envVarGroups:
+  - name: trendxl-api-keys
+    envVars:
+      - key: ENSEMBLE_API_TOKEN
+        value: your_ensemble_api_token_here
+      - key: OPENAI_API_KEY
+        value: sk-your_openai_api_key_here
+      - key: DEBUG
+        value: false

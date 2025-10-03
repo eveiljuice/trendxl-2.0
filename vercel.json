@@ -1,0 +1,67 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/health",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/test",
+      "destination": "/api/test.py"
+    },
+    {
+      "source": "/debug",
+      "destination": "/api/debug.py"
+    },
+    {
+      "source": "/simple",
+      "destination": "/api/simple.py"
+    },
+    {
+      "source": "/diagnostic",
+      "destination": "/api/diagnostic.py"
+    },
+    {
+      "source": "/simple_test",
+      "destination": "/api/simple_test.py"
+    },
+    {
+      "source": "/test_import",
+      "destination": "/api/test_import.py"
+    }
+  ],
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 300
+    },
+    "api/test.py": {
+      "maxDuration": 10
+    },
+    "api/debug.py": {
+      "maxDuration": 30
+    },
+    "api/diagnostic.py": {
+      "maxDuration": 10
+    },
+    "api/simple_test.py": {
+      "maxDuration": 10
+    },
+    "api/test_import.py": {
+      "maxDuration": 10
+    }
+  },
+  "build": {
+    "env": {
+      "VITE_BACKEND_API_URL": ""
+    }
+  }
+}
+

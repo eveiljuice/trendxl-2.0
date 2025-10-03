@@ -1,0 +1,6 @@
+tree 8481d7976955dd10f196678ba99e154f3072dcba
+parent c9cfc936b3a46bc6802641ff6b5ac0342e1b2c16
+author eveiljuice <doorto338@gmail.com> 1759419204 +0500
+committer eveiljuice <doorto338@gmail.com> 1759419204 +0500
+
+Fix backend API on Vercel by migrating to Supabase, updating imports, and removing deprecated files. Added environment variable guide and troubleshooting steps. Updated `vercel.json` to resolve memory warnings.

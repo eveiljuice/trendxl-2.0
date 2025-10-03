@@ -1,0 +1,1 @@
+Fix backend API on Vercel by migrating to Supabase, updating imports, and removing deprecated files. Added environment variable guide and troubleshooting steps. Updated `vercel.json` to resolve memory warnings.

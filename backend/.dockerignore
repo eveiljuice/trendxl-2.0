@@ -1,0 +1,45 @@
+# Backend .dockerignore
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+env/
+venv/
+ENV/
+.venv/
+
+# Testing
+tests/
+.pytest_cache/
+.coverage
+*.db-journal
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Logs
+*.log
+
+# Docs
+*.md
+
+# Environment files
+.env.local
+.env.*.local
+
+# Keep these important files:
+# - requirements.txt ✓
+# - *.py files ✓
+# - main.py ✓

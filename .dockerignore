@@ -1,0 +1,69 @@
+# Frontend .dockerignore
+# Ignore backend files when building frontend
+
+# Backend directory
+backend/
+
+# Python files
+*.py
+*.pyc
+__pycache__/
+requirements.txt
+
+# Node modules (will be reinstalled)
+node_modules/
+npm-debug.log
+yarn-error.log
+yarn.lock
+
+# Environment files (except production)
+.env.local
+.env.development.local
+.env.test.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Testing
+coverage/
+.pytest_cache/
+.jest/
+
+# Logs
+*.log
+
+# Documentation
+*.md
+docs/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Keep these frontend files:
+# - package.json ✓
+# - package-lock.json ✓
+# - src/ ✓
+# - public/ ✓
+# - index.html ✓
+# - vite.config.ts ✓
+# - tsconfig.json ✓
+# - tailwind.config.js ✓
+# - postcss.config.js ✓
+# - .env.production ✓

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: Remove API Token Usage display and Load More Trends button\n\n- Removed TokenUsageDisplay component and all references\n- Deleted src/components/TokenUsageDisplay.tsx\n- Removed Load More Trends button from TrendGrid component\n- Updated HomePage to remove token usage display section\n- Adjusted animation delays after removing token usage section\n\nToken usage data is still tracked on backend but no longer shown to users.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --force --index-filter \"git rm --cached --ignore-unmatch backend/.env.test\" --prune-empty --tag-name-filter cat -- --all)",
+      "Bash(git update-index:*)",
+      "Bash(pkill:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
