@@ -1,5 +1,5 @@
 # TikTok API Guide
-
+__________________
 This guide will walk you through how to use the EnsembleData API to fetch data from TikTok. We'll cover how to fetch posts, users, comments, music, and more. Make sure to first check out the `Setup` section below to get setup with ensembledata's python library, which we'll use for fetching data throughout the guide.
 
 ## Table of Contents
