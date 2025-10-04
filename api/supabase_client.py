@@ -497,7 +497,8 @@ async def can_use_free_trial(user_id: str) -> bool:
     except Exception as e:
         logger.error(f"❌ Failed to check free trial eligibility: {e}")
         # FALLBACK: Allow free trial if tables don't exist (before migration)
-        logger.warning("⚠️ Allowing free trial (database may not be initialized)")
+        logger.warning(
+            "⚠️ Allowing free trial (database may not be initialized)")
         return True
 
 
@@ -527,7 +528,8 @@ async def record_free_trial_usage(user_id: str, profile_analyzed: Optional[str] 
     except Exception as e:
         logger.error(f"❌ Failed to record free trial usage: {e}")
         # FALLBACK: Don't fail if tables don't exist
-        logger.warning("⚠️ Could not record usage (database may not be initialized)")
+        logger.warning(
+            "⚠️ Could not record usage (database may not be initialized)")
         return False
 
 
@@ -555,10 +557,11 @@ async def get_free_trial_info(user_id: str) -> Optional[dict]:
 
     except Exception as e:
         logger.error(f"❌ Failed to get free trial info: {e}")
-        
+
         # FALLBACK: If database tables don't exist, return default values
         # This prevents 404 errors and allows app to work before migration
-        logger.warning("⚠️ Returning default free trial info (database may not be initialized)")
+        logger.warning(
+            "⚠️ Returning default free trial info (database may not be initialized)")
         return {
             "can_use_today": True,
             "today_count": 0,

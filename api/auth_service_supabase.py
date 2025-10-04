@@ -11,6 +11,29 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+async def get_user_admin_status(user_id: str) -> bool:
+    """
+    Get admin status for a user from database
+
+    Args:
+        user_id: User UUID
+
+    Returns:
+        bool: True if user is admin, False otherwise
+    """
+    try:
+        client = get_supabase()
+        response = client.table("profiles").select(
+            "is_admin").eq("id", user_id).execute()
+
+        if response.data and len(response.data) > 0:
+            return response.data[0].get("is_admin", False)
+        return False
+    except Exception as e:
+        logger.error(f"Failed to get admin status for user {user_id}: {e}")
+        return False
+
+
 class UserCreate(BaseModel):
     """User registration model"""
     email: EmailStr
@@ -35,6 +58,7 @@ class UserProfile(BaseModel):
     bio: Optional[str] = None
     created_at: str
     last_login: Optional[str] = None
+    is_admin: bool = False  # Admin users bypass all subscription limits
 
 
 class UserProfileUpdate(BaseModel):
@@ -112,6 +136,9 @@ async def register_user(user_data: UserCreate) -> Dict[str, Any]:
 
         logger.info(f"✅ User registered: {user_data.email}")
 
+        # Get admin status from database
+        is_admin = await get_user_admin_status(auth_response.user.id)
+
         # Return response with or without session
         return {
             "access_token": auth_response.session.access_token if auth_response.session else "",
@@ -121,7 +148,8 @@ async def register_user(user_data: UserCreate) -> Dict[str, Any]:
                 "email": auth_response.user.email or user_data.email,
                 "username": user_data.username,
                 "full_name": user_data.full_name,
-                "created_at": auth_response.user.created_at
+                "created_at": auth_response.user.created_at,
+                "is_admin": is_admin
             }
         }
 
@@ -168,6 +196,9 @@ async def login_user(login_data: UserLogin) -> Dict[str, Any]:
         username = auth_response.user.user_metadata.get("username", "")
         full_name = auth_response.user.user_metadata.get("full_name", "")
 
+        # Get admin status from database
+        is_admin = await get_user_admin_status(auth_response.user.id)
+
         logger.info(f"✅ User logged in: {login_data.email}")
 
         return {
@@ -179,7 +210,8 @@ async def login_user(login_data: UserLogin) -> Dict[str, Any]:
                 "username": username,
                 "full_name": full_name,
                 "created_at": auth_response.user.created_at,
-                "last_login": auth_response.user.last_sign_in_at
+                "last_login": auth_response.user.last_sign_in_at,
+                "is_admin": is_admin
             }
         }
 
@@ -217,6 +249,9 @@ async def get_current_user(access_token: str) -> Dict[str, Any]:
         username = user.user_metadata.get("username", "")
         full_name = user.user_metadata.get("full_name", "")
 
+        # Get admin status from database
+        is_admin = await get_user_admin_status(user.id)
+
         return {
             "id": user.id,
             "email": user.email,
@@ -225,7 +260,8 @@ async def get_current_user(access_token: str) -> Dict[str, Any]:
             "avatar_url": user.user_metadata.get("avatar_url"),
             "bio": user.user_metadata.get("bio"),
             "created_at": user.created_at,
-            "last_login": user.last_sign_in_at
+            "last_login": user.last_sign_in_at,
+            "is_admin": is_admin
         }
 
     except Exception as e:
@@ -365,7 +401,8 @@ def user_to_profile(user_dict: dict) -> UserProfile:
         avatar_url=user_dict.get("avatar_url"),
         bio=user_dict.get("bio"),
         created_at=created_at,
-        last_login=last_login
+        last_login=last_login,
+        is_admin=user_dict.get("is_admin", False)
     )
 
 
