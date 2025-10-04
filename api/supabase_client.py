@@ -449,7 +449,7 @@ async def check_active_subscription(user_id: str) -> bool:
         # Active states: 'active', 'trialing'
         active_states = ['active', 'trialing']
 
-        return status.lower() in active_states
+        return status.lower() in active_states if status else False
 
     except Exception as e:
         logger.error(f"❌ Failed to check subscription status: {e}")

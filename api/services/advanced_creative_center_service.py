@@ -98,7 +98,7 @@ class AdvancedCreativeCenterService:
                 video_count = profile_data.get("video_count", 0)
 
                 # Analyze account origin
-                account_origin = await perplexity_service.analyze_tiktok_account_origin(
+                account_origin, _ = await perplexity_service.analyze_tiktok_account_origin(
                     username=username,
                     bio=bio,
                     recent_posts_content=recent_captions,
@@ -106,10 +106,10 @@ class AdvancedCreativeCenterService:
                     video_count=video_count
                 )
 
-                actual_country = account_origin["country_code"]
-                actual_language = account_origin["language"]
+                actual_country = account_origin.get("country_code", country)
+                actual_language = account_origin.get("language", language)
                 logger.info(
-                    f"🌍 Auto-detected TikTok account origin: {account_origin['country']} ({account_origin['confidence']} confidence)")
+                    f"🌍 Auto-detected TikTok account origin: {account_origin.get('country', 'Unknown')} ({account_origin.get('confidence', 'low')} confidence)")
             else:
                 actual_country = creative_center_mapping.get_country_code(
                     country)

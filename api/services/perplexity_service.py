@@ -349,7 +349,11 @@ Focus on being specific and actionable. The niche should be clear enough to reco
 
     async def close(self):
         """Close HTTP client"""
-        await self.client.aclose()
+        if self.client and not self.client.is_closed:
+            try:
+                await self.client.aclose()
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to close Perplexity client: {e}")
 
     async def analyze_tiktok_account_origin(
         self,
