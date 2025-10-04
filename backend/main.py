@@ -343,37 +343,67 @@ async def analyze_trends(
         from utils import extract_tiktok_username
         username = extract_tiktok_username(request.profile_url)
 
-        # CRITICAL: Record free trial usage BEFORE analysis to prevent race condition
-        # This ensures user cannot run analysis twice by sending concurrent requests
-        if is_free_trial_usage:
-            try:
-                await record_free_trial_usage(current_user.id, username)
-                logger.info(
-                    f"🎁 Free trial usage recorded BEFORE analysis for user {current_user.username}")
-            except Exception as e:
-                logger.error(f"❌ Failed to record free trial usage: {e}")
-                raise HTTPException(
-                    status_code=500,
-                    detail="Failed to record free trial usage"
-                )
-
+        # Check cache BEFORE recording free trial usage
+        # This prevents wasting free trial on cached results
         cached_result = await trend_service.get_cached_analysis(username)
 
         if cached_result:
             print(f"📋 BACKEND: Returning CACHED result for @{username}")
-            logger.info(f"📋 Returning cached analysis for @{username}")
+            logger.info(
+                f"📋 Returning cached analysis for @{username} (NO free trial used)")
             return cached_result
 
-        print(f"🔄 BACKEND: Starting NEW analysis (no cache found)...")
-        print(f"   - max_hashtags: 5")
-        print(f"   - videos_per_hashtag: 8")
+        # CRITICAL: Acquire lock to prevent race condition
+        # If two requests come simultaneously, only one should record free trial usage
+        lock_name = f"analysis:{current_user.id}:{username}"
+        lock_acquired = await cache_service.acquire_lock(lock_name, timeout=60)
 
-        # Perform new analysis - increased videos per hashtag to ensure 10+ total videos
-        result = await trend_service.analyze_profile_trends(
-            profile_input=request.profile_url,
-            max_hashtags=5,
-            videos_per_hashtag=8  # Increased from 4 to 8 to compensate for filters
-        )
+        if not lock_acquired:
+            # Another request is already processing, wait and check cache
+            logger.info(
+                f"🔒 Analysis in progress for @{username}, checking cache again...")
+            import asyncio
+            await asyncio.sleep(2)  # Wait 2 seconds
+            cached_result = await trend_service.get_cached_analysis(username)
+
+            if cached_result:
+                logger.info(f"📋 Found cached result after waiting")
+                return cached_result
+            else:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Analysis already in progress for this profile. Please wait a moment and try again."
+                )
+
+        try:
+            # CRITICAL: Record free trial usage ONLY when doing NEW analysis
+            # This ensures user only loses free trial when actual parsing happens
+            if is_free_trial_usage:
+                try:
+                    await record_free_trial_usage(current_user.id, username)
+                    logger.info(
+                        f"🎁 Free trial usage recorded for NEW analysis by user {current_user.username}")
+                except Exception as e:
+                    logger.error(f"❌ Failed to record free trial usage: {e}")
+                    await cache_service.release_lock(lock_name)
+                    raise HTTPException(
+                        status_code=500,
+                        detail="Failed to record free trial usage"
+                    )
+
+            print(f"🔄 BACKEND: Starting NEW analysis (no cache found)...")
+            print(f"   - max_hashtags: 5")
+            print(f"   - videos_per_hashtag: 8")
+
+            # Perform new analysis - increased videos per hashtag to ensure 10+ total videos
+            result = await trend_service.analyze_profile_trends(
+                profile_input=request.profile_url,
+                max_hashtags=5,
+                videos_per_hashtag=8  # Increased from 4 to 8 to compensate for filters
+            )
+        finally:
+            # Always release the lock
+            await cache_service.release_lock(lock_name)
 
         print(f"✅ BACKEND: Analysis completed for @{username}")
         print(f"   - Found {len(result.trends)} trends")
