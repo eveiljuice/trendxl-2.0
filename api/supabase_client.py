@@ -470,6 +470,140 @@ async def get_user_by_stripe_customer_id(stripe_customer_id: str) -> Optional[di
         return None
 
 
+# Free trial functions
+
+async def can_use_free_trial(user_id: str) -> bool:
+    """
+    Check if user can use their daily free trial (1 analysis per day)
+
+    Args:
+        user_id: Supabase user ID
+
+    Returns:
+        True if user can use free trial today, False otherwise
+    """
+    try:
+        client = get_supabase()
+
+        # Call the database function
+        response = client.rpc('can_use_free_trial', {
+                              'p_user_id': user_id}).execute()
+
+        if response.data is not None:
+            return bool(response.data)
+
+        return False
+
+    except Exception as e:
+        logger.error(f"❌ Failed to check free trial eligibility: {e}")
+        # FALLBACK: Allow free trial if tables don't exist (before migration)
+        logger.warning("⚠️ Allowing free trial (database may not be initialized)")
+        return True
+
+
+async def record_free_trial_usage(user_id: str, profile_analyzed: Optional[str] = None) -> bool:
+    """
+    Record a free trial analysis usage
+
+    Args:
+        user_id: Supabase user ID
+        profile_analyzed: TikTok profile that was analyzed
+
+    Returns:
+        True if recorded successfully, False otherwise
+    """
+    try:
+        client = get_supabase()
+
+        # Call the database function
+        client.rpc('record_free_trial_usage', {
+            'p_user_id': user_id,
+            'p_profile_analyzed': profile_analyzed
+        }).execute()
+
+        logger.info(f"✅ Recorded free trial usage for user {user_id}")
+        return True
+
+    except Exception as e:
+        logger.error(f"❌ Failed to record free trial usage: {e}")
+        # FALLBACK: Don't fail if tables don't exist
+        logger.warning("⚠️ Could not record usage (database may not be initialized)")
+        return False
+
+
+async def get_free_trial_info(user_id: str) -> Optional[dict]:
+    """
+    Get detailed information about user's free trial usage
+
+    Args:
+        user_id: Supabase user ID
+
+    Returns:
+        Dict with free trial info or None
+    """
+    try:
+        client = get_supabase()
+
+        # Call the database function
+        response = client.rpc('get_free_trial_info', {
+                              'p_user_id': user_id}).execute()
+
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+
+        return None
+
+    except Exception as e:
+        logger.error(f"❌ Failed to get free trial info: {e}")
+        
+        # FALLBACK: If database tables don't exist, return default values
+        # This prevents 404 errors and allows app to work before migration
+        logger.warning("⚠️ Returning default free trial info (database may not be initialized)")
+        return {
+            "can_use_today": True,
+            "today_count": 0,
+            "last_used": None,
+            "total_free_analyses": 0
+        }
+
+
+async def check_user_can_analyze(user_id: str) -> tuple[bool, str, Optional[dict]]:
+    """
+    Check if user can perform an analysis (either has subscription or free trial available)
+
+    Args:
+        user_id: Supabase user ID
+
+    Returns:
+        Tuple of (can_analyze: bool, reason: str, details: dict)
+    """
+    try:
+        # Check if user has active subscription
+        has_subscription = await check_active_subscription(user_id)
+
+        if has_subscription:
+            return True, "active_subscription", {"type": "subscription"}
+
+        # Check if user can use free trial
+        can_use_trial = await can_use_free_trial(user_id)
+
+        if can_use_trial:
+            trial_info = await get_free_trial_info(user_id)
+            return True, "free_trial", {"type": "free_trial", "info": trial_info}
+
+        # User cannot analyze - no subscription and free trial exhausted
+        trial_info = await get_free_trial_info(user_id)
+        return False, "no_access", {
+            "type": "no_access",
+            "trial_info": trial_info,
+            "message": "You've used your free daily analysis. Subscribe to get unlimited access!"
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Failed to check if user can analyze: {e}")
+        return False, "error", {"type": "error", "message": str(e)}
+
+
 # Initialize on module import
 try:
     init_supabase()
