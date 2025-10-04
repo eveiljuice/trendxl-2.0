@@ -31,6 +31,12 @@ export function SubscriptionBanner() {
       setSubscriptionStatus(status);
     } catch (error) {
       console.error('Failed to load subscription status:', error);
+      // Set fallback status to show banner even if API fails
+      setSubscriptionStatus({
+        has_active_subscription: false,
+        subscription_status: 'none',
+        subscription_end_date: null,
+      });
     } finally {
       setLoading(false);
     }
@@ -42,6 +48,15 @@ export function SubscriptionBanner() {
       setFreeTrialInfo(info);
     } catch (error) {
       console.error('Failed to load free trial info:', error);
+      // Set fallback info to show banner even if API fails
+      setFreeTrialInfo({
+        can_use_free_trial: true,
+        today_count: 0,
+        daily_limit: 1,
+        total_free_analyses: 0,
+        has_subscription: false,
+        message: 'You get 1 free profile analysis per day!',
+      });
     }
   };
 

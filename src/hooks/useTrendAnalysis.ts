@@ -225,7 +225,15 @@ export const useTrendAnalysis = () => {
       setError(errorMessage);
     } finally {
       setLoading(false);
-      setProgress(prev => ({ ...prev, percentage: 100 }));
+      // Reset progress after a short delay to allow UI to show completion
+      setTimeout(() => {
+        setProgress({
+          stage: 'profile',
+          message: '',
+          percentage: 0,
+          startTime: null,
+        });
+      }, 500);
     }
   }, [setLoading, setError, updateState]);
 
