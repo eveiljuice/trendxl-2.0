@@ -339,29 +339,46 @@ async def analyze_trends(
         print(f"{'='*80}\n")
         logger.info(f"🎯 Trend analysis requested for: {request.profile_url}")
 
-        # Try to get cached result first
+        # Extract username for caching and tracking
         from utils import extract_tiktok_username
         username = extract_tiktok_username(request.profile_url)
 
-        # Check cache BEFORE recording free trial usage
-        # This prevents wasting free trial on cached results
+        # CRITICAL: Record free trial usage IMMEDIATELY for free users
+        # Free trial is consumed on EVERY request (cached or not)
+        # Only paid subscribers get benefit of cached results
+        if is_free_trial_usage:
+            try:
+                await record_free_trial_usage(current_user.id, username)
+                logger.info(
+                    f"🎁 Free trial used by {current_user.username} for @{username}")
+            except Exception as e:
+                logger.error(f"❌ Failed to record free trial usage: {e}")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to record free trial usage"
+                )
+
+        # Check cache - but free trial users already consumed their attempt
+        # Paid subscribers benefit from faster cached responses
         cached_result = await trend_service.get_cached_analysis(username)
 
         if cached_result:
             print(f"📋 BACKEND: Returning CACHED result for @{username}")
-            logger.info(
-                f"📋 Returning cached analysis for @{username} (NO free trial used)")
+            if is_free_trial_usage:
+                logger.info(
+                    f"📋 Cached result for @{username} (free trial already consumed)")
+            else:
+                logger.info(f"📋 Cached result for @{username} (subscription)")
             return cached_result
 
-        # CRITICAL: Acquire lock to prevent race condition
-        # If two requests come simultaneously, only one should record free trial usage
+        # Acquire lock to prevent duplicate processing
         lock_name = f"analysis:{current_user.id}:{username}"
         lock_acquired = await cache_service.acquire_lock(lock_name, timeout=60)
 
         if not lock_acquired:
             # Another request is already processing, wait and check cache
             logger.info(
-                f"🔒 Analysis in progress for @{username}, checking cache again...")
+                f"🔒 Analysis in progress for @{username}, waiting for result...")
             import asyncio
             await asyncio.sleep(2)  # Wait 2 seconds
             cached_result = await trend_service.get_cached_analysis(username)
@@ -376,21 +393,6 @@ async def analyze_trends(
                 )
 
         try:
-            # CRITICAL: Record free trial usage ONLY when doing NEW analysis
-            # This ensures user only loses free trial when actual parsing happens
-            if is_free_trial_usage:
-                try:
-                    await record_free_trial_usage(current_user.id, username)
-                    logger.info(
-                        f"🎁 Free trial usage recorded for NEW analysis by user {current_user.username}")
-                except Exception as e:
-                    logger.error(f"❌ Failed to record free trial usage: {e}")
-                    await cache_service.release_lock(lock_name)
-                    raise HTTPException(
-                        status_code=500,
-                        detail="Failed to record free trial usage"
-                    )
-
             print(f"🔄 BACKEND: Starting NEW analysis (no cache found)...")
             print(f"   - max_hashtags: 5")
             print(f"   - videos_per_hashtag: 8")
