@@ -77,7 +77,12 @@ from supabase_client import (
     update_user_subscription,
     get_user_subscription_info,
     check_active_subscription,
-    get_user_by_stripe_customer_id
+    get_user_by_stripe_customer_id,
+    # Free trial functions
+    can_use_free_trial,
+    record_free_trial_usage,
+    get_free_trial_info,
+    check_user_can_analyze
 )
 
 # Configure logging
@@ -272,7 +277,7 @@ async def get_status():
 @app.post("/api/v1/analyze", response_model=TrendAnalysisResponse)
 async def analyze_trends(
     request: TrendAnalysisRequest,
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    current_user: Optional[UserProfile] = Depends(get_current_user)
 ):
     """
     Analyze TikTok profile trends
@@ -283,73 +288,151 @@ async def analyze_trends(
     3. Searches trending videos for each hashtag
     4. Returns comprehensive analysis results
 
-    Requires authentication. Records token usage for the user.
+    Free users get 1 analysis per day. Subscription required for unlimited access.
     """
     try:
-        # Get current user (optional - analysis can work without auth)
-        current_user = None
-        if credentials:
-            try:
-                token_data = decode_access_token(credentials.credentials)
-                current_user = await get_user_by_id(token_data["user_id"])
-            except:
-                # If token is invalid, continue without user
-                pass
+        # Check if user is authenticated
+        if not current_user:
+            raise HTTPException(
+                status_code=401,
+                detail={
+                    "error": "Authentication required",
+                    "message": "Please log in to use trend analysis.",
+                    "action": "login"
+                }
+            )
+
+        # Admins bypass all checks
+        # Track if this is a free trial usage (before analysis)
+        is_free_trial_usage = False
+
+        if current_user.is_admin:
+            logger.info(
+                f"🔑 Admin user {current_user.username} bypassing all checks")
+        else:
+            # Check if user can analyze (subscription or free trial)
+            can_analyze, reason, details = await check_user_can_analyze(current_user.id)
+
+            if not can_analyze:
+                trial_info = details.get("trial_info", {})
+                today_count = trial_info.get(
+                    "today_count", 0) if trial_info else 0
+
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "error": "Analysis limit reached",
+                        "message": details.get("message", "You've used your free daily analysis. Subscribe to get unlimited access!"),
+                        "today_count": today_count,
+                        "action": "subscribe",
+                        "type": "free_trial_exhausted"
+                    }
+                )
+
+            # Log what type of access user is using
+            if reason == "free_trial":
+                is_free_trial_usage = True
+                logger.info(
+                    f"🎁 User {current_user.username} using FREE TRIAL (1/day)")
+            elif reason == "active_subscription":
+                logger.info(
+                    f"💳 User {current_user.username} using SUBSCRIPTION")
 
         print(f"\n{'='*80}")
         print(f"🚀 BACKEND: NEW ANALYSIS REQUEST RECEIVED!")
         print(f"🎯 Profile URL: {request.profile_url}")
-        if current_user:
-            print(
-                f"👤 User: {current_user['username']} (ID: {current_user['id']})")
+        print(f"👤 User: {current_user.username} (ID: {current_user.id})")
         print(f"{'='*80}\n")
         logger.info(f"🎯 Trend analysis requested for: {request.profile_url}")
 
-        # Try to get cached result first
+        # Extract username for caching and tracking
         from utils import extract_tiktok_username
         username = extract_tiktok_username(request.profile_url)
+
+        # CRITICAL: Record free trial usage IMMEDIATELY for free users
+        # Free trial is consumed on EVERY request (cached or not)
+        # Only paid subscribers get benefit of cached results
+        if is_free_trial_usage:
+            try:
+                await record_free_trial_usage(current_user.id, username)
+                logger.info(
+                    f"🎁 Free trial used by {current_user.username} for @{username}")
+            except Exception as e:
+                logger.error(f"❌ Failed to record free trial usage: {e}")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to record free trial usage"
+                )
+
+        # Check cache - but free trial users already consumed their attempt
+        # Paid subscribers benefit from faster cached responses
         cached_result = await trend_service.get_cached_analysis(username)
 
         if cached_result:
             print(f"📋 BACKEND: Returning CACHED result for @{username}")
-            logger.info(f"📋 Returning cached analysis for @{username}")
+            if is_free_trial_usage:
+                logger.info(
+                    f"📋 Cached result for @{username} (free trial already consumed)")
+            else:
+                logger.info(f"📋 Cached result for @{username} (subscription)")
             return cached_result
 
-        print(f"🔄 BACKEND: Starting NEW analysis (no cache found)...")
-        print(f"   - max_hashtags: 5")
-        print(f"   - videos_per_hashtag: 8")
+        # Acquire lock to prevent duplicate processing
+        lock_name = f"analysis:{current_user.id}:{username}"
+        lock_acquired = await cache_service.acquire_lock(lock_name, timeout=60)
 
-        # Perform new analysis - increased videos per hashtag to ensure 10+ total videos
-        result = await trend_service.analyze_profile_trends(
-            profile_input=request.profile_url,
-            max_hashtags=5,
-            videos_per_hashtag=8  # Increased from 4 to 8 to compensate for filters
-        )
+        if not lock_acquired:
+            # Another request is already processing, wait and check cache
+            logger.info(
+                f"🔒 Analysis in progress for @{username}, waiting for result...")
+            import asyncio
+            await asyncio.sleep(2)  # Wait 2 seconds
+            cached_result = await trend_service.get_cached_analysis(username)
+
+            if cached_result:
+                logger.info(f"📋 Found cached result after waiting")
+                return cached_result
+            else:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Analysis already in progress for this profile. Please wait a moment and try again."
+                )
+
+        try:
+            print(f"🔄 BACKEND: Starting NEW analysis (no cache found)...")
+            print(f"   - max_hashtags: 5")
+            print(f"   - videos_per_hashtag: 8")
+
+            # Perform new analysis - increased videos per hashtag to ensure 10+ total videos
+            result = await trend_service.analyze_profile_trends(
+                profile_input=request.profile_url,
+                max_hashtags=5,
+                videos_per_hashtag=8  # Increased from 4 to 8 to compensate for filters
+            )
+        finally:
+            # Always release the lock
+            await cache_service.release_lock(lock_name)
 
         print(f"✅ BACKEND: Analysis completed for @{username}")
         print(f"   - Found {len(result.trends)} trends")
 
-        # Record token usage for authenticated users
-        if current_user and result.token_usage:
+        # Record token usage
+        if result.token_usage:
             try:
-                # Record total tokens and cost
-                total_tokens = (
-                    result.token_usage.openai_prompt_tokens +
-                    result.token_usage.openai_completion_tokens +
-                    result.token_usage.perplexity_prompt_tokens +
-                    result.token_usage.perplexity_completion_tokens
-                )
                 await record_token_usage(
-                    user_id=current_user["id"],
-                    endpoint="/api/v1/analyze",
-                    tokens_used=total_tokens,
-                    model="gpt-4+perplexity",
-                    cost=result.token_usage.total_cost_estimate
+                    user_id=current_user.id,
+                    openai_prompt_tokens=result.token_usage.openai_prompt_tokens,
+                    openai_completion_tokens=result.token_usage.openai_completion_tokens,
+                    perplexity_prompt_tokens=result.token_usage.perplexity_prompt_tokens,
+                    perplexity_completion_tokens=result.token_usage.perplexity_completion_tokens,
+                    ensemble_units=result.token_usage.ensemble_units,
+                    total_cost_estimate=result.token_usage.total_cost_estimate,
+                    profile_analyzed=username
                 )
                 print(
-                    f"💾 Token usage recorded for user {current_user['username']}")
+                    f"💾 Token usage recorded for user {current_user.username}")
                 logger.info(
-                    f"💾 Token usage recorded for user {current_user['id']}")
+                    f"💾 Token usage recorded for user {current_user.id}")
             except Exception as e:
                 logger.warning(f"⚠️ Failed to record token usage: {e}")
 
@@ -1066,6 +1149,75 @@ async def get_token_usage_by_period(
         raise
     except Exception as e:
         logger.error(f"❌ Failed to get token usage by period: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Free Trial endpoints
+
+@app.get("/api/v1/free-trial/info")
+async def get_free_trial_status(
+    current_user: UserProfile = Depends(require_auth)
+):
+    """
+    Get user's free trial information
+
+    Returns information about daily free analysis usage:
+    - Whether user can use free trial today
+    - How many analyses used today
+    - Total free analyses used
+    """
+    try:
+        # Admins don't use free trial
+        if current_user.is_admin:
+            return {
+                "is_admin": True,
+                "has_subscription": True,
+                "can_use_free_trial": False,
+                "message": "Admin users have unlimited access"
+            }
+
+        # Check if user has subscription
+        has_subscription = await check_active_subscription(current_user.id)
+
+        if has_subscription:
+            return {
+                "is_admin": False,
+                "has_subscription": True,
+                "can_use_free_trial": False,
+                "message": "You have an active subscription with unlimited access"
+            }
+
+        # Get free trial info
+        trial_info = await get_free_trial_info(current_user.id)
+
+        if not trial_info:
+            return {
+                "is_admin": False,
+                "has_subscription": False,
+                "can_use_free_trial": True,
+                "today_count": 0,
+                "total_free_analyses": 0,
+                "daily_limit": 1,
+                "message": "You have 1 free analysis available today"
+            }
+
+        can_use = trial_info.get("can_use_today", False)
+        today_count = trial_info.get("today_count", 0)
+        total_count = trial_info.get("total_free_analyses", 0)
+
+        return {
+            "is_admin": False,
+            "has_subscription": False,
+            "can_use_free_trial": can_use,
+            "today_count": today_count,
+            "total_free_analyses": total_count,
+            "daily_limit": 1,
+            "last_used": trial_info.get("last_used"),
+            "message": f"You have used {today_count}/1 free analyses today" if not can_use else "You have 1 free analysis available today"
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Failed to get free trial info: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
