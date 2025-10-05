@@ -27,11 +27,15 @@ console.log('🌐 Final API Base URL:', BACKEND_API_BASE_URL);
 
 // Create axios instance for backend API
 const createBackendClient = (customTimeout?: number) => {
+  // Get auth token from localStorage
+  const authToken = localStorage.getItem('auth_token');
+
   const client = axios.create({
     baseURL: BACKEND_API_BASE_URL,
     headers: {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
+      ...(authToken && { 'Authorization': `Bearer ${authToken}` }),
     },
     timeout: customTimeout || 180000, // 3 minutes default timeout
   });

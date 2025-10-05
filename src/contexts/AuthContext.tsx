@@ -97,15 +97,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      // Ignore INITIAL_SESSION and TOKEN_REFRESHED events to avoid noise
+      if (_event === 'INITIAL_SESSION' || _event === 'TOKEN_REFRESHED') {
+        return;
+      }
+
       console.log('🔄 Auth state changed:', _event);
-      
-      if (session) {
+
+      if (session && _event === 'SIGNED_IN') {
         console.log('✅ New session detected');
         setToken(session.access_token);
         localStorage.setItem('auth_token', session.access_token);
         await verifyToken(session.access_token);
-      } else {
-        console.log('❌ Session cleared');
+      } else if (_event === 'SIGNED_OUT') {
+        console.log('❌ User signed out');
         setToken(null);
         setUser(null);
         localStorage.removeItem('auth_token');
@@ -128,33 +133,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         },
         timeout: 10000, // 10 second timeout
       });
-      
+
       console.log('✅ Token verified, user:', response.data.email);
       setUser(response.data);
-      
-      // Refresh Supabase session if needed
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        console.log('🔄 Refreshing Supabase session');
-        // Try to restore session from token
-        const { error: setSessionError } = await supabase.auth.setSession({
-          access_token: authToken,
-          refresh_token: authToken, // This might need adjustment based on your auth flow
-        });
-        
-        if (setSessionError) {
-          console.warn('Failed to set Supabase session:', setSessionError);
-        }
-      }
+
+      // Don't try to restore Supabase session from our custom JWT token
+      // Supabase manages its own sessions separately
     } catch (error: any) {
       console.error('❌ Token verification failed:', error.message);
-      
+
       // Only clear token if it's actually invalid (401/403)
       if (error.response?.status === 401 || error.response?.status === 403) {
         console.log('🗑️ Clearing invalid token');
         localStorage.removeItem('auth_token');
         setToken(null);
         setUser(null);
+        // Clear Supabase session as well
+        await supabase.auth.signOut();
       } else {
         // Network error or other issue - keep the token for retry
         console.log('⚠️ Network error, keeping token for retry');
@@ -207,10 +202,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
     setToken(null);
     setUser(null);
     localStorage.removeItem('auth_token');
+    // Sign out from Supabase to clear session properly
+    await supabase.auth.signOut();
   };
 
   const updateProfile = async (data: {
