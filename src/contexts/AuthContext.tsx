@@ -137,8 +137,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('✅ Token verified, user:', response.data.email);
       setUser(response.data);
 
-      // Don't try to restore Supabase session from our custom JWT token
-      // Supabase manages its own sessions separately
+      // CRITICAL: Restore Supabase session on token verification
+      // This ensures supabase.auth.getUser() works after page refresh
+      try {
+        await supabase.auth.setSession({
+          access_token: authToken,
+          refresh_token: authToken, // Use access_token as refresh_token fallback
+        });
+        console.log('✅ Supabase session restored');
+      } catch (sessionError) {
+        console.warn('⚠️ Failed to restore Supabase session:', sessionError);
+        // Don't fail verification if session setup fails
+      }
     } catch (error: any) {
       console.error('❌ Token verification failed:', error.message);
 
@@ -171,6 +181,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setToken(access_token);
       setUser(userData);
       localStorage.setItem('auth_token', access_token);
+      
+      // CRITICAL: Set Supabase session with the access token
+      // This allows supabase.auth.getUser() to work in scanHistoryService
+      try {
+        await supabase.auth.setSession({
+          access_token: access_token,
+          refresh_token: access_token, // Use access_token as refresh_token fallback
+        });
+        console.log('✅ Supabase session established');
+      } catch (sessionError) {
+        console.warn('⚠️ Failed to set Supabase session:', sessionError);
+        // Don't fail login if session setup fails
+      }
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || 'Login failed';
       throw new Error(errorMessage);
@@ -196,6 +219,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setToken(access_token);
       setUser(userData);
       localStorage.setItem('auth_token', access_token);
+      
+      // CRITICAL: Set Supabase session with the access token
+      // This allows supabase.auth.getUser() to work in scanHistoryService
+      try {
+        await supabase.auth.setSession({
+          access_token: access_token,
+          refresh_token: access_token, // Use access_token as refresh_token fallback
+        });
+        console.log('✅ Supabase session established');
+      } catch (sessionError) {
+        console.warn('⚠️ Failed to set Supabase session:', sessionError);
+        // Don't fail registration if session setup fails
+      }
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || 'Registration failed';
       throw new Error(errorMessage);
