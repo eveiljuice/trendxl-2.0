@@ -15,7 +15,10 @@ logger = logging.getLogger(__name__)
 
 # Supabase configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+# Use service role key for backend operations (bypasses RLS)
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+SUPABASE_KEY = SUPABASE_SERVICE_KEY if SUPABASE_SERVICE_KEY else os.getenv(
+    "SUPABASE_ANON_KEY", "")
 
 # Initialize Supabase client
 supabase: Optional[Client] = None
@@ -27,9 +30,9 @@ def init_supabase() -> Client:
 
     if not SUPABASE_URL or not SUPABASE_KEY:
         logger.error(
-            "❌ SUPABASE_URL or SUPABASE_ANON_KEY not set in environment variables")
+            "❌ SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY/SUPABASE_ANON_KEY not set in environment variables")
         raise ValueError(
-            "Supabase configuration missing. Please set SUPABASE_URL and SUPABASE_ANON_KEY")
+            "Supabase configuration missing. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_ANON_KEY)")
 
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -499,7 +502,8 @@ async def can_use_free_trial(user_id: str) -> bool:
     except Exception as e:
         logger.error(f"❌ Failed to check free trial eligibility: {e}")
         # FALLBACK: Allow free trial if tables don't exist (before migration)
-        logger.warning("⚠️ Allowing free trial (database may not be initialized)")
+        logger.warning(
+            "⚠️ Allowing free trial (database may not be initialized)")
         return True
 
 
@@ -528,9 +532,9 @@ async def record_free_trial_usage(user_id: str, profile_analyzed: Optional[str] 
 
     except Exception as e:
         logger.error(f"❌ Failed to record free trial usage: {e}")
-        # FALLBACK: Don't fail if tables don't exist
-        logger.warning("⚠️ Could not record usage (database may not be initialized)")
-        return False
+        logger.error(f"❌ Error details: {type(e).__name__}: {str(e)}")
+        # Re-raise exception so endpoint can handle it properly
+        raise Exception(f"Failed to record free trial usage: {str(e)}") from e
 
 
 async def get_free_trial_info(user_id: str) -> Optional[dict]:
@@ -557,10 +561,11 @@ async def get_free_trial_info(user_id: str) -> Optional[dict]:
 
     except Exception as e:
         logger.error(f"❌ Failed to get free trial info: {e}")
-        
+
         # FALLBACK: If database tables don't exist, return default values
         # This prevents 404 errors and allows app to work before migration
-        logger.warning("⚠️ Returning default free trial info (database may not be initialized)")
+        logger.warning(
+            "⚠️ Returning default free trial info (database may not be initialized)")
         return {
             "can_use_today": True,
             "today_count": 0,

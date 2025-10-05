@@ -354,14 +354,25 @@ async def analyze_trends(
         # Only paid subscribers get benefit of cached results
         if is_free_trial_usage:
             try:
-                await record_free_trial_usage(current_user.id, username)
+                success = await record_free_trial_usage(current_user.id, username)
+                if not success:
+                    # Should not happen with new exception handling, but check anyway
+                    logger.error(
+                        f"❌ record_free_trial_usage returned False for {current_user.username}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail="Failed to record free trial usage. Please try again."
+                    )
                 logger.info(
                     f"🎁 Free trial used by {current_user.username} for @{username}")
+            except HTTPException:
+                raise  # Re-raise HTTP exceptions as-is
             except Exception as e:
                 logger.error(f"❌ Failed to record free trial usage: {e}")
+                logger.error(f"❌ Error type: {type(e).__name__}")
                 raise HTTPException(
                     status_code=500,
-                    detail="Failed to record free trial usage"
+                    detail=f"Failed to record free trial usage: {str(e)}"
                 )
 
         # Check cache - but free trial users already consumed their attempt
