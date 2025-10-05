@@ -117,8 +117,11 @@ export async function analyzeProfileTrends(
     // Notify progress start
     onProgress?.('profile', 'Connecting to TikTok API...');
     
+    // Extract username properly
+    const username = extractTikTokUsername(profileUrl);
+    
     const response = await client.post('/api/v1/analyze', {
-      profile_url: profileUrl
+      profile_url: username
     });
     
     return response.data;
@@ -174,7 +177,7 @@ export async function analyzeProfileTrendsWithProgress(
     // Simulate AI analysis delay and call full analyze for AI part
     await new Promise(resolve => setTimeout(resolve, 2000));
     const response = await client.post('/api/v1/analyze', {
-      profile_url: profileUrl
+      profile_url: username
     });
     
     onProgress?.('analysis', `GPT-4o extracted ${response.data.hashtags?.length || 0} key hashtags`, 60);

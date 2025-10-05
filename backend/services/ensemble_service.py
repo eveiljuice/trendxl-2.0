@@ -31,9 +31,11 @@ class EnsembleService:
             if settings.ensemble_api_token and len(settings.ensemble_api_token) > 10:
                 self.client = EDClient(settings.ensemble_api_token)
                 self.initialized = True
-                logger.info("✅ Ensemble Data SDK client initialized successfully")
+                logger.info(
+                    "✅ Ensemble Data SDK client initialized successfully")
             else:
-                logger.warning("⚠️ Ensemble API token not configured - service disabled")
+                logger.warning(
+                    "⚠️ Ensemble API token not configured - service disabled")
         except Exception as e:
             logger.error(f"❌ Failed to initialize Ensemble Data client: {e}")
             self.initialized = False
@@ -802,14 +804,17 @@ class EnsembleService:
 
                 # Validate required fields before creating post
                 if not post_id:
-                    logger.warning(f"⚠️ Skipping post at index {i}: missing post_id")
+                    logger.warning(
+                        f"⚠️ Skipping post at index {i}: missing post_id")
                     continue
 
                 # Ensure create_time is never empty (already guaranteed by _parse_timestamp)
                 if not create_time:
-                    logger.error(f"⚠️ Critical: create_time is empty for post {post_id}")
+                    logger.error(
+                        f"⚠️ Critical: create_time is empty for post {post_id}")
                     import datetime
-                    create_time = datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00', 'Z')
+                    create_time = datetime.datetime.now(
+                        datetime.timezone.utc).isoformat().replace('+00:00', 'Z')
 
                 # Extract hashtags from description
                 hashtags = extract_hashtags_from_text(caption)
@@ -1195,15 +1200,18 @@ class EnsembleService:
             if isinstance(timestamp, str):
                 timestamp = int(timestamp)
             elif not isinstance(timestamp, (int, float)):
-                logger.warning(f"⚠️ Invalid timestamp type: {type(timestamp)}, using current time")
+                logger.warning(
+                    f"⚠️ Invalid timestamp type: {type(timestamp)}, using current time")
                 return datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00', 'Z')
 
             # Create datetime from timestamp with UTC timezone
-            dt = datetime.datetime.fromtimestamp(int(timestamp), datetime.timezone.utc)
+            dt = datetime.datetime.fromtimestamp(
+                int(timestamp), datetime.timezone.utc)
             return dt.isoformat().replace('+00:00', 'Z')
 
         except (ValueError, TypeError, OSError) as e:
-            logger.warning(f"⚠️ Failed to parse timestamp {timestamp}: {e}, using current time")
+            logger.warning(
+                f"⚠️ Failed to parse timestamp {timestamp}: {e}, using current time")
             return datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00', 'Z')
 
     def _extract_best_avatar_url(self, user_data: dict, username: str) -> str:
