@@ -3,6 +3,7 @@
  */
 import axios from 'axios';
 import { TikTokProfile, TikTokPost, TrendVideo, CreativeCenterHashtag, NicheHashtagResponse, CreativeCenterAnalysisRequest, CreativeCenterAnalysisResponse } from '../types';
+import { extractTikTokUsername } from '../utils';
 
 // Backend API configuration
 // На Vercel фронтенд и бекенд на одном домене - используем относительные пути
@@ -154,7 +155,7 @@ export async function analyzeProfileTrendsWithProgress(
   analysis_summary: string;
 }> {
   try {
-    const username = profileUrl.replace(/@/g, '').replace('https://www.tiktok.com/@', '');
+    const username = extractTikTokUsername(profileUrl);
     const client = createBackendClient(300000); // 5-minute timeout
     
     // Step 1: Get profile (20% progress)

@@ -800,6 +800,17 @@ class EnsembleService:
                     safe_get_nested(post_data, ['create_time'])
                 )
 
+                # Validate required fields before creating post
+                if not post_id:
+                    logger.warning(f"⚠️ Skipping post at index {i}: missing post_id")
+                    continue
+
+                # Ensure create_time is never empty (already guaranteed by _parse_timestamp)
+                if not create_time:
+                    logger.error(f"⚠️ Critical: create_time is empty for post {post_id}")
+                    import datetime
+                    create_time = datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00', 'Z')
+
                 # Extract hashtags from description
                 hashtags = extract_hashtags_from_text(caption)
 
@@ -1171,27 +1182,29 @@ class EnsembleService:
             timestamp: Unix timestamp from API response
 
         Returns:
-            ISO formatted timestamp string
+            ISO formatted timestamp string (always valid, never empty)
         """
         import datetime
 
+        # If timestamp is None, empty, or 0 - return current time in UTC
         if not timestamp:
-            return datetime.datetime.now().isoformat() + 'Z'
+            return datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00', 'Z')
 
         try:
             # Handle both integer and string timestamps
             if isinstance(timestamp, str):
                 timestamp = int(timestamp)
             elif not isinstance(timestamp, (int, float)):
-                return datetime.datetime.now().isoformat() + 'Z'
+                logger.warning(f"⚠️ Invalid timestamp type: {type(timestamp)}, using current time")
+                return datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00', 'Z')
 
-            # Create datetime from timestamp
-            dt = datetime.datetime.fromtimestamp(int(timestamp))
-            return dt.isoformat() + 'Z'
+            # Create datetime from timestamp with UTC timezone
+            dt = datetime.datetime.fromtimestamp(int(timestamp), datetime.timezone.utc)
+            return dt.isoformat().replace('+00:00', 'Z')
 
         except (ValueError, TypeError, OSError) as e:
-            logger.warning(f"⚠️ Failed to parse timestamp {timestamp}: {e}")
-            return datetime.datetime.now().isoformat() + 'Z'
+            logger.warning(f"⚠️ Failed to parse timestamp {timestamp}: {e}, using current time")
+            return datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00', 'Z')
 
     def _extract_best_avatar_url(self, user_data: dict, username: str) -> str:
         """

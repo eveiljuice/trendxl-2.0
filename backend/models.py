@@ -33,7 +33,7 @@ class TikTokPost(BaseModel):
     comments: int = 0
     shares: int = 0
     favorites: int = 0
-    create_time: str
+    create_time: str = ""
     video_url: str = ""
     cover_image_url: str = ""
     # Support for multiple images (for image posts or additional video thumbnails)
@@ -59,13 +59,13 @@ class TrendVideo(BaseModel):
     likes: int = 0
     shares: int = 0
     comments: int = 0
-    create_time: str
+    create_time: str = ""
     video_url: str = ""
     cover_image_url: str = ""
     # Support for multiple images (for image posts or additional video thumbnails)
     images: List[str] = Field(default_factory=list,
                               description="Additional images from the post")
-    hashtag: str
+    hashtag: str = ""
     author: TikTokAuthor = Field(default_factory=TikTokAuthor)
     # Content relevance analysis
     content_relevance: Optional["ContentRelevanceAnalysis"] = None

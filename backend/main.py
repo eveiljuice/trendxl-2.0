@@ -342,6 +342,8 @@ async def analyze_trends(
         # Extract username for caching and tracking
         from utils import extract_tiktok_username
         username = extract_tiktok_username(request.profile_url)
+        logger.info(f"✅ Extracted username from URL: '{username}'")
+        print(f"✅ Extracted username: '{username}'")
 
         # CRITICAL: Record free trial usage IMMEDIATELY for free users
         # Free trial is consumed on EVERY request (cached or not)
