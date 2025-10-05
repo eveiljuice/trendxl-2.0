@@ -97,23 +97,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      // Ignore INITIAL_SESSION and TOKEN_REFRESHED events to avoid noise
-      if (_event === 'INITIAL_SESSION' || _event === 'TOKEN_REFRESHED') {
+      // Ignore INITIAL_SESSION, TOKEN_REFRESHED, and SIGNED_IN during manual login
+      // to avoid duplicate verifyToken calls
+      if (_event === 'INITIAL_SESSION' || _event === 'TOKEN_REFRESHED' || _event === 'SIGNED_IN') {
         return;
       }
 
       console.log('🔄 Auth state changed:', _event);
 
-      if (session && _event === 'SIGNED_IN') {
-        console.log('✅ New session detected');
-        setToken(session.access_token);
-        localStorage.setItem('auth_token', session.access_token);
-        await verifyToken(session.access_token);
-      } else if (_event === 'SIGNED_OUT') {
+      if (_event === 'SIGNED_OUT') {
         console.log('❌ User signed out');
         setToken(null);
         setUser(null);
         localStorage.removeItem('auth_token');
+        setIsLoading(false);
       }
     });
 
@@ -171,6 +168,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (email: string, password: string) => {
     try {
+      setIsLoading(true);
       const response = await axios.post(`${API_URL}/api/v1/auth/login`, {
         email,
         password,
@@ -194,7 +192,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.warn('⚠️ Failed to set Supabase session:', sessionError);
         // Don't fail login if session setup fails
       }
+      
+      // CRITICAL: Set loading to false after successful login
+      setIsLoading(false);
     } catch (error: any) {
+      setIsLoading(false);
       const errorMessage = error.response?.data?.detail || 'Login failed';
       throw new Error(errorMessage);
     }
@@ -207,6 +209,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     fullName?: string
   ) => {
     try {
+      setIsLoading(true);
       const response = await axios.post(`${API_URL}/api/v1/auth/register`, {
         email,
         username,
@@ -232,7 +235,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.warn('⚠️ Failed to set Supabase session:', sessionError);
         // Don't fail registration if session setup fails
       }
+      
+      // CRITICAL: Set loading to false after successful registration
+      setIsLoading(false);
     } catch (error: any) {
+      setIsLoading(false);
       const errorMessage = error.response?.data?.detail || 'Registration failed';
       throw new Error(errorMessage);
     }
