@@ -25,8 +25,14 @@ export interface ScanHistoryItem {
 /**
  * Save a scan to history with full analysis data
  * Returns the ID of the created scan
+ * 
+ * @param userId - User ID from AuthContext (required)
+ * @param username - TikTok username that was analyzed
+ * @param analysisData - Full analysis results
+ * @param scanType - Type of scan ('free' or 'paid')
  */
 export async function saveScanToHistory(
+  userId: string,
   username: string,
   analysisData: {
     profile: TikTokProfile;
@@ -38,17 +44,15 @@ export async function saveScanToHistory(
   scanType: 'free' | 'paid' = 'free'
 ): Promise<string | null> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      console.warn('User not authenticated, cannot save scan history');
+    if (!userId) {
+      console.warn('User ID not provided, cannot save scan history');
       return null;
     }
 
     const { data, error } = await supabase
       .from('scan_history')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         username,
         profile_data: analysisData,
         scan_type: scanType,

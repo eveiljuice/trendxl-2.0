@@ -3,6 +3,7 @@ import { TikTokProfile, AppState } from '../types';
 import { analyzeProfileTrends, analyzeProfileTrendsWithProgress, analyzeCreativeCenterComplete, checkBackendHealth } from '../services/backendApi';
 import { saveScanToHistory, saveLastSearchedUsername, getLastSearchedUsername } from '../services/scanHistoryService';
 import { checkSubscriptionStatus } from '../services/subscriptionService';
+import { useAuth } from '../contexts/AuthContext';
 // Mock data service removed - using only real data
 import { extractTikTokUsername } from '../utils';
 
@@ -20,6 +21,7 @@ const determineScanType = async (): Promise<'free' | 'paid'> => {
 };
 
 export const useTrendAnalysis = () => {
+  const { user } = useAuth();
   const [state, setState] = useState<AppState>({
     isLoading: false,
     profile: null,
@@ -123,13 +125,13 @@ export const useTrendAnalysis = () => {
         const scanType = await determineScanType();
         
         // Save FULL analysis to history and store last searched username
-        const scanId = await saveScanToHistory(username, {
+        const scanId = user?.id ? await saveScanToHistory(user.id, username, {
           profile: creativeResult.profile,
           trends: creativeResult.trends,
           hashtags: creativeCenterHashtags,
           posts: [],
           tokenUsage: null
-        }, scanType);
+        }, scanType) : null;
         saveLastSearchedUsername(username);
         setLastSearchedUsername(username);
         
@@ -162,13 +164,13 @@ export const useTrendAnalysis = () => {
           const scanTypeTraditional = await determineScanType();
           
           // Save FULL analysis to history and store last searched username
-          const scanId = await saveScanToHistory(username, {
+          const scanId = user?.id ? await saveScanToHistory(user.id, username, {
             profile: result.profile,
             trends: result.trends,
             hashtags: result.hashtags,
             posts: result.posts || [],
             tokenUsage: null
-          }, scanTypeTraditional);
+          }, scanTypeTraditional) : null;
           saveLastSearchedUsername(username);
           setLastSearchedUsername(username);
           
@@ -199,13 +201,13 @@ export const useTrendAnalysis = () => {
           const scanTypeFinal = await determineScanType();
           
           // Save FULL analysis to history and store last searched username
-          const scanId = await saveScanToHistory(username, {
+          const scanId = user?.id ? await saveScanToHistory(user.id, username, {
             profile: result.profile,
             trends: result.trends,
             hashtags: result.hashtags,
             posts: result.posts || [],
             tokenUsage: null
-          }, scanTypeFinal);
+          }, scanTypeFinal) : null;
           saveLastSearchedUsername(username);
           setLastSearchedUsername(username);
           
