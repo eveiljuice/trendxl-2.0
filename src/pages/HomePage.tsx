@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { TrendVideo } from '../types';
 import { useTrendAnalysis } from '../hooks/useTrendAnalysis';
 import { useAuth } from '../contexts/AuthContext';
+import { getFreeTrialInfo } from '../services/subscriptionService';
 
 // Components
 import ProfileInput from '../components/ProfileInput';
@@ -67,9 +68,32 @@ function HomePage() {
       return;
     }
 
-    // Let backend handle subscription and free trial checks
-    // Backend will return proper error if user has no access
-    analyzeTrends(profileInput);
+    // CRITICAL: Check free trial status BEFORE calling analyzeTrends
+    // This prevents unnecessary API calls and provides immediate feedback
+    try {
+      const trialInfo = await getFreeTrialInfo();
+      
+      console.log('🔍 Free trial check before analysis:', trialInfo);
+      
+      // If user is not admin and doesn't have subscription
+      if (!trialInfo.is_admin && !trialInfo.has_subscription) {
+        // Check if they can use free trial
+        if (!trialInfo.can_use_free_trial) {
+          console.log('🔒 Free trial exhausted, showing subscription modal');
+          setShowSubscriptionModal(true);
+          return; // Don't proceed with analysis
+        }
+      }
+      
+      // If checks passed, proceed with analysis
+      console.log('✅ Free trial check passed, proceeding with analysis');
+      analyzeTrends(profileInput);
+      
+    } catch (error) {
+      console.error('Failed to check free trial status:', error);
+      // If check fails, still try to analyze - backend will handle it
+      analyzeTrends(profileInput);
+    }
   };
 
   const handleReset = () => {
