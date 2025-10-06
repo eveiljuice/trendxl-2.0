@@ -16,9 +16,15 @@ logger = logging.getLogger(__name__)
 # Supabase configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 # Use service role key for backend operations (bypasses RLS)
-SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
-SUPABASE_KEY = SUPABASE_SERVICE_KEY if SUPABASE_SERVICE_KEY else os.getenv(
-    "SUPABASE_ANON_KEY", "")
+# Try multiple possible env var names for compatibility
+SUPABASE_SERVICE_KEY = (
+    os.getenv("SUPABASE_SERVICE_KEY") or 
+    os.getenv("SUPABASE_SERVICE_ROLE_KEY") or
+    os.getenv("SUPABASE_KEY") or
+    os.getenv("SUPABASE_ANON_KEY") or
+    ""
+)
+SUPABASE_KEY = SUPABASE_SERVICE_KEY
 
 # Initialize Supabase client
 supabase: Optional[Client] = None
@@ -30,13 +36,13 @@ def init_supabase() -> Client:
 
     if not SUPABASE_URL or not SUPABASE_KEY:
         logger.error(
-            "❌ SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY/SUPABASE_ANON_KEY not set in environment variables")
+            "❌ SUPABASE_URL or SUPABASE_SERVICE_KEY not set in environment variables")
         raise ValueError(
-            "Supabase configuration missing. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_ANON_KEY)")
+            "Supabase configuration missing. Please set SUPABASE_URL and SUPABASE_SERVICE_KEY")
 
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        logger.info("✅ Supabase client initialized successfully")
+        logger.info(f"✅ Supabase client initialized successfully (using {'SERVICE_KEY' if 'service_role' in SUPABASE_KEY.lower() or len(SUPABASE_KEY) > 200 else 'ANON_KEY'})")
         return supabase
     except Exception as e:
         logger.error(f"❌ Failed to initialize Supabase client: {e}")
