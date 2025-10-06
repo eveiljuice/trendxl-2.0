@@ -73,7 +73,14 @@ function HomePage() {
     try {
       const trialInfo = await getFreeTrialInfo();
       
-      console.log('🔍 Free trial check before analysis:', trialInfo);
+      console.log('🔍 Free trial check before analysis:', {
+        is_admin: trialInfo.is_admin,
+        has_subscription: trialInfo.has_subscription,
+        can_use_free_trial: trialInfo.can_use_free_trial,
+        today_count: trialInfo.today_count,
+        daily_limit: trialInfo.daily_limit,
+        FULL_OBJECT: trialInfo
+      });
       
       // If user is not admin and doesn't have subscription
       if (!trialInfo.is_admin && !trialInfo.has_subscription) {
@@ -82,7 +89,11 @@ function HomePage() {
           console.log('🔒 Free trial exhausted, showing subscription modal');
           setShowSubscriptionModal(true);
           return; // Don't proceed with analysis
+        } else {
+          console.log('🎁 Free trial AVAILABLE:', `${trialInfo.today_count}/${trialInfo.daily_limit} used today`);
         }
+      } else {
+        console.log('✨ Admin or subscription user, unlimited access');
       }
       
       // If checks passed, proceed with analysis
