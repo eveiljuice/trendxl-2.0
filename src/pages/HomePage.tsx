@@ -230,10 +230,27 @@ function HomePage() {
           {/* New Analysis Button */}
           <div className="text-center animate-fade-in" style={{ animationDelay: '600ms' }}>
             <button
-              onClick={handleReset}
+              onClick={async () => {
+                // Force refresh free trial status before reset
+                if (isAuthenticated) {
+                  try {
+                    const trialInfo = await getFreeTrialInfo();
+                    const canUse = trialInfo.is_admin || trialInfo.has_subscription || trialInfo.can_use_free_trial;
+                    setCanUseFreeTrialState(canUse);
+                    console.log('🔄 Free trial status refreshed on reset:', {
+                      can_use_free_trial: trialInfo.can_use_free_trial,
+                      today_count: trialInfo.today_count,
+                      canUse
+                    });
+                  } catch (error) {
+                    console.error('❌ Failed to refresh free trial on reset:', error);
+                  }
+                }
+                handleReset();
+              }}
               className="btn-primary text-sm sm:text-base px-5 py-2.5 sm:px-6 sm:py-3"
             >
-              Analyze another profile
+              🏠 Back to Home
             </button>
           </div>
         </div>
