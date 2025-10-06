@@ -3,11 +3,13 @@
 ## 🔍 ДИАГНОЗ ПРОБЛЕМЫ
 
 **Симптомы:**
+
 - ✅ Тестовая запись добавляется в `daily_free_analyses`
 - ❌ В аккаунте `timolast@example.com` НЕ РАБОТАЕТ ввод ссылки
 - ❌ В новых аккаунтах после парсинга НЕ РАБОТАЕТ повторный ввод
 
 **Корень проблемы:**
+
 1. **RLS политики слишком строгие** - блокируют запись через backend с SERVICE_KEY
 2. **Backend использует неправильный ключ** - ANON_KEY вместо SERVICE_KEY
 3. **Функции без явного search_path** - могут не работать корректно
@@ -27,6 +29,7 @@
    ```
 
 3. **Если НЕТ `SUPABASE_SERVICE_KEY`:**
+
    - Откройте **Supabase Dashboard** → Settings → API
    - Скопируйте **`service_role` key (secret)** (НЕ anon key!)
    - Добавьте в Vercel как `SUPABASE_SERVICE_KEY`
@@ -45,6 +48,7 @@
 3. Вставьте в SQL Editor и нажмите **Run**
 
 4. **Что делает этот скрипт:**
+
    - ✅ Удаляет старые RLS политики
    - ✅ Создает новые политики с правильным доступом
    - ✅ Добавляет политику для `service_role` (полный доступ)
@@ -76,15 +80,17 @@ git push origin main
 ### 1. Backend (`backend/supabase_client.py`)
 
 **ДО:**
+
 ```python
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 SUPABASE_KEY = SUPABASE_SERVICE_KEY if SUPABASE_SERVICE_KEY else os.getenv("SUPABASE_ANON_KEY", "")
 ```
 
 **ПОСЛЕ:**
+
 ```python
 SUPABASE_SERVICE_KEY = (
-    os.getenv("SUPABASE_SERVICE_KEY") or 
+    os.getenv("SUPABASE_SERVICE_KEY") or
     os.getenv("SUPABASE_SERVICE_ROLE_KEY") or
     os.getenv("SUPABASE_KEY") or
     os.getenv("SUPABASE_ANON_KEY") or
@@ -99,6 +105,7 @@ SUPABASE_KEY = SUPABASE_SERVICE_KEY
 ### 2. RLS Политики (SQL)
 
 **ДО:**
+
 ```sql
 CREATE POLICY "Users can insert their own free analyses"
     ON public.daily_free_analyses FOR INSERT
@@ -106,6 +113,7 @@ CREATE POLICY "Users can insert their own free analyses"
 ```
 
 **ПОСЛЕ:**
+
 ```sql
 CREATE POLICY "Service role has full access"
     ON public.daily_free_analyses
@@ -124,6 +132,7 @@ CREATE POLICY "Allow insert for authenticated users"
 ### 3. Функции (SQL)
 
 **ДО:**
+
 ```sql
 CREATE OR REPLACE FUNCTION public.record_free_trial_usage(...)
 SECURITY DEFINER
@@ -135,6 +144,7 @@ $$;
 ```
 
 **ПОСЛЕ:**
+
 ```sql
 CREATE OR REPLACE FUNCTION public.record_free_trial_usage(...)
 SECURITY DEFINER
@@ -203,6 +213,7 @@ SELECT * FROM public.daily_free_analyses ORDER BY created_at DESC LIMIT 5;
 ## 📊 ОЖИДАЕМОЕ ПОВЕДЕНИЕ
 
 ### Новый пользователь (без подписки):
+
 1. ✅ Видит счетчик: `1/1 Free Today` (фиолетовый блок)
 2. ✅ Может ввести ссылку и запустить анализ
 3. ✅ После анализа счетчик меняется: `0/1 Used Today` (оранжевый блок)
@@ -211,11 +222,13 @@ SELECT * FROM public.daily_free_analyses ORDER BY created_at DESC LIMIT 5;
 6. ✅ Показывается таймер: "Resets in Xh Ym"
 
 ### Пользователь с подпиской:
+
 1. ✅ Видит: "✨ Premium Active - Unlimited Scans" (зеленый блок)
 2. ✅ Может делать неограниченное количество анализов
 3. ✅ Счетчик не показывается
 
 ### Admin пользователь:
+
 1. ✅ Видит: "✨ Premium Active - Unlimited Scans" (зеленый блок)
 2. ✅ Может делать неограниченное количество анализов
 3. ✅ Счетчик не показывается
@@ -227,6 +240,7 @@ SELECT * FROM public.daily_free_analyses ORDER BY created_at DESC LIMIT 5;
 ### Проблема: "Supabase client initialized (using ANON_KEY)"
 
 **Решение:**
+
 1. `SUPABASE_SERVICE_KEY` НЕ установлен в Vercel
 2. Добавьте переменную в Vercel Environment Variables
 3. Передеплойте проект
@@ -234,6 +248,7 @@ SELECT * FROM public.daily_free_analyses ORDER BY created_at DESC LIMIT 5;
 ### Проблема: "INSERT violation of RLS policy"
 
 **Решение:**
+
 1. SQL скрипт `FINAL_FIX_RLS.sql` НЕ применен
 2. Примените скрипт в Supabase SQL Editor
 3. Проверьте что политики созданы
@@ -241,6 +256,7 @@ SELECT * FROM public.daily_free_analyses ORDER BY created_at DESC LIMIT 5;
 ### Проблема: "Function does not exist"
 
 **Решение:**
+
 1. Функции не созданы или удалены
 2. Примените `backend/supabase_free_trial_migration.sql`
 3. Затем примените `backend/FINAL_FIX_RLS.sql`
@@ -248,6 +264,7 @@ SELECT * FROM public.daily_free_analyses ORDER BY created_at DESC LIMIT 5;
 ### Проблема: Счетчик не обновляется
 
 **Решение:**
+
 1. Backend не записывает в таблицу
 2. Проверьте логи Vercel на ошибки
 3. Проверьте что `SUPABASE_SERVICE_KEY` правильный
@@ -273,4 +290,3 @@ SELECT * FROM public.daily_free_analyses ORDER BY created_at DESC LIMIT 5;
 **Дата:** 6 октября 2025  
 **Приоритет:** 🔴 CRITICAL  
 **Время на исправление:** 10-15 минут
-

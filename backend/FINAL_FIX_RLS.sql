@@ -49,7 +49,12 @@ GRANT SELECT, INSERT, UPDATE ON public.daily_free_analyses TO authenticated;
 -- Шаг 4: Убедиться что RLS включен
 ALTER TABLE public.daily_free_analyses ENABLE ROW LEVEL SECURITY;
 
--- Шаг 5: Обновить функцию record_free_trial_usage для явного указания прав
+-- Шаг 5: УДАЛИТЬ старые функции (если существуют с другой сигнатурой)
+DROP FUNCTION IF EXISTS public.record_free_trial_usage(UUID, TEXT);
+DROP FUNCTION IF EXISTS public.can_use_free_trial(UUID);
+DROP FUNCTION IF EXISTS public.get_free_trial_info(UUID);
+
+-- Шаг 6: Создать функцию record_free_trial_usage с правильной сигнатурой
 CREATE OR REPLACE FUNCTION public.record_free_trial_usage(
     p_user_id UUID,
     p_profile_analyzed TEXT DEFAULT NULL
@@ -85,7 +90,7 @@ BEGIN
 END;
 $$;
 
--- Шаг 6: Обновить can_use_free_trial для корректной работы
+-- Шаг 7: Создать can_use_free_trial для корректной работы
 CREATE OR REPLACE FUNCTION public.can_use_free_trial(p_user_id UUID)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
@@ -123,7 +128,7 @@ BEGIN
 END;
 $$;
 
--- Шаг 7: Обновить get_free_trial_info
+-- Шаг 8: Создать get_free_trial_info с новой сигнатурой
 CREATE OR REPLACE FUNCTION public.get_free_trial_info(p_user_id UUID)
 RETURNS TABLE (
     can_use_today BOOLEAN,
@@ -206,7 +211,7 @@ BEGIN
 END;
 $$;
 
--- Шаг 8: Проверка что все работает
+-- Шаг 9: Проверка что все работает
 DO $$
 BEGIN
     RAISE NOTICE '✅ RLS policies updated successfully';
