@@ -5,9 +5,17 @@ import ApiStatusBanner from './ApiStatusBanner';
 import { ProfileInputProps } from '../types';
 import { isValidTikTokInput } from '../utils';
 
-const ProfileInput: React.FC<ProfileInputProps> = ({ onSubmit, isLoading }) => {
+const ProfileInput: React.FC<ProfileInputProps> = ({ 
+  onSubmit, 
+  isLoading, 
+  canUseTrial = true, // Default to true for backward compatibility
+  onSubscribeClick 
+}) => {
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
+  
+  // Determine if input should be disabled
+  const isDisabled = isLoading || canUseTrial === false;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,22 +122,22 @@ const ProfileInput: React.FC<ProfileInputProps> = ({ onSubmit, isLoading }) => {
                     <Input
                       value={input}
                       onChange={handleInputChange}
-                      placeholder="Enter TikTok profile link or @username"
+                      placeholder={isDisabled && canUseTrial === false ? "Subscribe to continue analyzing profiles" : "Enter TikTok profile link or @username"}
                       pl={{ base: 12, sm: 14, md: 16 }}
                       pr={{ base: 4, sm: 6 }}
                       py={{ base: 5, sm: 6, md: 7 }}
                       fontSize={{ base: "md", sm: "lg" }}
-                      bg="transparent"
+                      bg={isDisabled && canUseTrial === false ? "gray.50" : "transparent"}
                       border="none"
                       color="black"
-                      _placeholder={{ color: "gray.500", fontSize: { base: "sm", sm: "md" } }}
-                      _hover={{ bg: "transparent" }}
+                      _placeholder={{ color: isDisabled && canUseTrial === false ? "red.500" : "gray.500", fontSize: { base: "sm", sm: "md" } }}
+                      _hover={{ bg: isDisabled && canUseTrial === false ? "gray.50" : "transparent" }}
                       _focus={{ 
                         outline: "none",
-                        bg: "transparent"
+                        bg: isDisabled && canUseTrial === false ? "gray.50" : "transparent"
                       }}
                       borderRadius={{ base: "lg", sm: "xl" }}
-                      disabled={isLoading}
+                      disabled={isDisabled}
                       className="font-jetbrains"
                     />
                   </Box>
@@ -144,47 +152,76 @@ const ProfileInput: React.FC<ProfileInputProps> = ({ onSubmit, isLoading }) => {
                 )}
 
                 {/* Enhanced Submit Button - адаптивные размеры */}
-                <Button
-                  type="submit"
-                  disabled={isLoading || !input.trim()}
-                  w="full"
-                  size={{ base: "md", sm: "lg" }}
-                  bg="black"
-                  color="white"
-                  _hover={{ 
-                    bg: "gray.800",
-                    transform: "translateY(-2px)",
-                    shadow: "xl"
-                  }}
-                  _active={{
-                    transform: "translateY(0px)"
-                  }}
-                  _disabled={{ 
-                    opacity: 0.5, 
-                    cursor: "not-allowed",
-                    bg: "gray.400"
-                  }}
-                  className={`font-orbitron font-bold text-base sm:text-lg transition-all duration-200 ${isLoading ? 'animate-pulse' : ''}`}
-                  borderRadius={{ base: "lg", sm: "xl" }}
-                  py={{ base: 6, sm: 7, md: 8 }}
-                  shadow="lg"
-                >
-                  {isLoading ? (
+                {canUseTrial === false && onSubscribeClick ? (
+                  // Show "Subscribe" button when free trial exhausted
+                  <Button
+                    onClick={onSubscribeClick}
+                    w="full"
+                    size={{ base: "md", sm: "lg" }}
+                    bg="red.500"
+                    color="white"
+                    _hover={{ 
+                      bg: "red.600",
+                      transform: "translateY(-2px)",
+                      shadow: "xl"
+                    }}
+                    _active={{
+                      transform: "translateY(0px)"
+                    }}
+                    className="font-orbitron font-bold text-base sm:text-lg transition-all duration-200"
+                    borderRadius={{ base: "lg", sm: "xl" }}
+                    py={{ base: 6, sm: 7, md: 8 }}
+                    shadow="lg"
+                  >
                     <HStack spacing={{ base: 2, sm: 3 }}>
-                      <Box className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <Text fontSize={{ base: "sm", sm: "md" }}>Analyzing...</Text>
+                      <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
+                      <Text fontSize={{ base: "sm", sm: "md" }}>Subscribe for Unlimited Access</Text>
                     </HStack>
-                  ) : (
-                    <HStack spacing={{ base: 2, sm: 3 }}>
-                      <img
-                        src="/photo.svg"
-                        alt="Logo"
-                        className="w-4 h-4 sm:w-5 sm:h-5"
-                      />
-                      <Text fontSize={{ base: "sm", sm: "md" }}>Discover Trends</Text>
-                    </HStack>
-                  )}
-                </Button>
+                  </Button>
+                ) : (
+                  // Show normal "Discover Trends" button
+                  <Button
+                    type="submit"
+                    disabled={isDisabled || !input.trim()}
+                    w="full"
+                    size={{ base: "md", sm: "lg" }}
+                    bg="black"
+                    color="white"
+                    _hover={{ 
+                      bg: "gray.800",
+                      transform: "translateY(-2px)",
+                      shadow: "xl"
+                    }}
+                    _active={{
+                      transform: "translateY(0px)"
+                    }}
+                    _disabled={{ 
+                      opacity: 0.5, 
+                      cursor: "not-allowed",
+                      bg: "gray.400"
+                    }}
+                    className={`font-orbitron font-bold text-base sm:text-lg transition-all duration-200 ${isLoading ? 'animate-pulse' : ''}`}
+                    borderRadius={{ base: "lg", sm: "xl" }}
+                    py={{ base: 6, sm: 7, md: 8 }}
+                    shadow="lg"
+                  >
+                    {isLoading ? (
+                      <HStack spacing={{ base: 2, sm: 3 }}>
+                        <Box className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <Text fontSize={{ base: "sm", sm: "md" }}>Analyzing...</Text>
+                      </HStack>
+                    ) : (
+                      <HStack spacing={{ base: 2, sm: 3 }}>
+                        <img
+                          src="/photo.svg"
+                          alt="Logo"
+                          className="w-4 h-4 sm:w-5 sm:h-5"
+                        />
+                        <Text fontSize={{ base: "sm", sm: "md" }}>Discover Trends</Text>
+                      </HStack>
+                    )}
+                  </Button>
+                )}
                 
                 {/* Help text - адаптивный размер */}
                 <Text fontSize={{ base: "xs", sm: "sm" }} color="gray.600" textAlign="center" className="font-inter">

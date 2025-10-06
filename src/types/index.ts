@@ -107,6 +107,8 @@ export interface AppState {
 export interface ProfileInputProps {
   onSubmit: (profileUrl: string) => void;
   isLoading: boolean;
+  canUseTrial?: boolean | null; // null = not checked yet, false = exhausted, true = available
+  onSubscribeClick?: () => void; // Callback to open subscription modal
 }
 
 export interface TrendCardProps {

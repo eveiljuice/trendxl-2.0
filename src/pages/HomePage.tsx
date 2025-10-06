@@ -41,6 +41,7 @@ function HomePage() {
   const [selectedTrend, setSelectedTrend] = useState<TrendVideo | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [canUseFreeTrialState, setCanUseFreeTrialState] = useState<boolean | null>(null);
 
   // Load saved analysis from My Trends navigation
   useEffect(() => {
@@ -50,6 +51,34 @@ function HomePage() {
       window.history.replaceState({}, document.title);
     }
   }, [location.state, loadSavedAnalysis]);
+
+  // Check free trial status on mount and when authenticated
+  useEffect(() => {
+    const checkFreeTrialStatus = async () => {
+      if (isAuthenticated) {
+        try {
+          const trialInfo = await getFreeTrialInfo();
+          // User can use free trial if: is admin OR has subscription OR can use free trial
+          const canUse = trialInfo.is_admin || trialInfo.has_subscription || trialInfo.can_use_free_trial;
+          setCanUseFreeTrialState(canUse);
+          
+          console.log('🔍 Free trial status check:', {
+            is_admin: trialInfo.is_admin,
+            has_subscription: trialInfo.has_subscription,
+            can_use_free_trial: trialInfo.can_use_free_trial,
+            RESULT_canUse: canUse
+          });
+        } catch (error) {
+          console.error('❌ Failed to check free trial status:', error);
+          setCanUseFreeTrialState(true); // Default to allowing if check fails
+        }
+      } else {
+        setCanUseFreeTrialState(null); // Not authenticated
+      }
+    };
+
+    checkFreeTrialStatus();
+  }, [isAuthenticated]);
 
   const handleTrendClick = (trend: TrendVideo) => {
     setSelectedTrend(trend);
@@ -148,6 +177,8 @@ function HomePage() {
           <ProfileInput
             onSubmit={handleProfileSubmit}
             isLoading={isLoading}
+            canUseTrial={canUseFreeTrialState}
+            onSubscribeClick={() => setShowSubscriptionModal(true)}
           />
         </>
       )}

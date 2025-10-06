@@ -13,6 +13,7 @@
 3. Посмотрите результаты:
 
 **Что проверяет скрипт:**
+
 - ✅ Существует ли таблица `daily_free_analyses`
 - ✅ Есть ли записи в таблице
 - ✅ Существуют ли функции (`can_use_free_trial`, `record_free_trial_usage`, `get_free_trial_info`)
@@ -22,31 +23,38 @@
 ### Шаг 2: Исправление на основе диагностики
 
 #### Проблема 1: Таблица не существует
+
 ```
 ❌ Table exists: daily_free_analyses -> NO
 ```
 
 **Решение:**
+
 1. Откройте **Supabase Dashboard** → **SQL Editor**
 2. Выполните файл `backend/supabase_free_trial_migration.sql`
 
 #### Проблема 2: Функции не существуют
+
 ```
 ❌ Functions: can_use_free_trial -> NOT FOUND
 ```
 
 **Решение:**
+
 1. Выполните файл `backend/fix_free_trial_null.sql` в SQL Editor
 
 #### Проблема 3: RLS политики отсутствуют
+
 ```
 ❌ NO POLICIES found for daily_free_analyses
 ```
 
 **Решение:**
+
 1. Выполните секцию с политиками из `backend/supabase_free_trial_migration.sql` (строки 26-42)
 
 #### Проблема 4: Нет записей в таблице
+
 ```
 ✅ Таблица есть, функции есть, но записей нет
 ```
@@ -58,6 +66,7 @@
 Функция `record_free_trial_usage` выполняется с `SECURITY DEFINER`, но если политики настроены неправильно, запись может не проходить.
 
 **Решение:**
+
 ```sql
 -- Временно отключите RLS для теста
 ALTER TABLE public.daily_free_analyses DISABLE ROW LEVEL SECURITY;
@@ -78,6 +87,7 @@ ALTER TABLE public.daily_free_analyses ENABLE ROW LEVEL SECURITY;
 Если бекенд использует `SUPABASE_KEY` вместо `SUPABASE_SERVICE_KEY`, функция может не иметь прав на запись.
 
 **Проверьте в Vercel:**
+
 1. Vercel Dashboard → Settings → Environment Variables
 2. Убедитесь что есть `SUPABASE_SERVICE_KEY` (не только `SUPABASE_KEY`)
 3. Проверьте что используется именно service key (начинается с `eyJ...` и ДЛИННЫЙ)
@@ -85,11 +95,13 @@ ALTER TABLE public.daily_free_analyses ENABLE ROW LEVEL SECURITY;
 **C. Функция не вызывается на бекенде**
 
 **Проверьте логи Vercel:**
+
 ```bash
 vercel logs --prod
 ```
 
 Ищите строки:
+
 - `✅ Recorded free trial usage for user ...` - функция сработала
 - `❌ Failed to record free trial usage` - ошибка при записи
 
@@ -103,7 +115,7 @@ vercel logs --prod
 async def record_free_trial_usage(user_id: str, profile_analyzed: Optional[str] = None) -> bool:
     try:
         client = get_supabase()
-        
+
         # Прямая запись в таблицу (не через RPC)
         data = {
             'user_id': user_id,
@@ -111,16 +123,16 @@ async def record_free_trial_usage(user_id: str, profile_analyzed: Optional[str] 
             'analysis_count': 1,
             'profile_analyzed': profile_analyzed
         }
-        
+
         # Upsert: если запись есть - обновляем count, если нет - создаем
         response = client.table('daily_free_analyses').upsert(
             data,
             on_conflict='user_id,analysis_date'
         ).execute()
-        
+
         logger.info(f"✅ Recorded free trial usage for user {user_id}")
         return True
-        
+
     except Exception as e:
         logger.error(f"❌ Failed to record free trial usage: {e}")
         raise Exception(f"Failed to record free trial usage: {str(e)}") from e
@@ -147,23 +159,29 @@ DROP FUNCTION IF EXISTS public.get_free_trial_info CASCADE;
 После применения исправлений:
 
 1. **В браузере:**
+
    - Откройте консоль
    - Выполните анализ
    - Должно появиться:
+
    ```
    🎁 Free trial AVAILABLE: 0/1 used today
    ✅ Free trial check passed, proceeding with analysis
    ```
+
    - После анализа:
+
    ```
    🎁 Free trial AVAILABLE: 1/1 used today
    ```
 
 2. **В Supabase:**
+
    ```sql
-   SELECT * FROM public.daily_free_analyses 
+   SELECT * FROM public.daily_free_analyses
    WHERE analysis_date = CURRENT_DATE;
    ```
+
    - Должна быть запись с `analysis_count = 1`
 
 3. **Попробуйте снова:**
@@ -174,6 +192,7 @@ DROP FUNCTION IF EXISTS public.get_free_trial_info CASCADE;
 ## 📞 Если проблема всё еще не решена
 
 Отправьте результаты диагностики:
+
 1. Результат выполнения `backend/diagnose_free_trial.sql`
 2. Логи Vercel: `vercel logs --prod | grep "free trial"`
 3. Скриншот консоли браузера после попытки анализа
@@ -182,4 +201,3 @@ DROP FUNCTION IF EXISTS public.get_free_trial_info CASCADE;
 
 **Дата:** 6 октября 2025  
 **Критичность:** 🔴 HIGH - Позволяет обходить лимиты
-
