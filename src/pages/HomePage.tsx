@@ -13,6 +13,7 @@ import LoadingStates from '../components/LoadingStates';
 import ErrorState from '../components/ErrorState';
 import VideoModal from '../components/VideoModal';
 import AuthModal from '../components/AuthModal';
+import SubscriptionModal from '../components/SubscriptionModal';
 import { SubscriptionBanner } from '../components/SubscriptionBanner';
 import { FreeTrialCounter } from '../components/FreeTrialCounter';
 
@@ -32,6 +33,8 @@ function HomePage() {
     resetAnalysis,
     retryAnalysis,
     loadSavedAnalysis,
+    showSubscriptionModal,
+    setShowSubscriptionModal,
   } = useTrendAnalysis();
 
   const [selectedTrend, setSelectedTrend] = useState<TrendVideo | null>(null);
@@ -105,7 +108,7 @@ function HomePage() {
       {!isLoading && !error && !profile && (
         <>
           {/* Free Trial Counter */}
-          {isAuthenticated && <FreeTrialCounter />}
+          {isAuthenticated && <FreeTrialCounter refreshTrigger={profile ? Date.now() : undefined} />}
           
           <ProfileInput
             onSubmit={handleProfileSubmit}
@@ -162,6 +165,12 @@ function HomePage() {
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
+      />
+      
+      {/* Subscription Modal */}
+      <SubscriptionModal
+        isOpen={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
       />
     </div>
   );

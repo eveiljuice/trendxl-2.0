@@ -4,7 +4,11 @@ import { Clock, Sparkles, CheckCircle } from 'lucide-react';
 import { getFreeTrialInfo, type FreeTrialInfo } from '@/services/subscriptionService';
 import { useAuth } from '@/contexts/AuthContext';
 
-export const FreeTrialCounter: React.FC = () => {
+interface FreeTrialCounterProps {
+  refreshTrigger?: number;
+}
+
+export const FreeTrialCounter: React.FC<FreeTrialCounterProps> = ({ refreshTrigger }) => {
   const { user } = useAuth();
   const [trialInfo, setTrialInfo] = useState<FreeTrialInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -16,6 +20,13 @@ export const FreeTrialCounter: React.FC = () => {
       setLoading(false);
     }
   }, [user]);
+
+  // Auto-refresh when refreshTrigger changes
+  useEffect(() => {
+    if (user && refreshTrigger) {
+      loadTrialInfo();
+    }
+  }, [refreshTrigger, user]);
 
   const loadTrialInfo = async () => {
     try {

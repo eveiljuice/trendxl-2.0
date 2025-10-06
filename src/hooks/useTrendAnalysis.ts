@@ -40,6 +40,9 @@ export const useTrendAnalysis = () => {
     startTime: null as Date | null,
   });
 
+  // Subscription modal state
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+
   // Load last searched username on mount
   const [lastSearchedUsername, setLastSearchedUsername] = useState<string | null>(null);
   
@@ -221,10 +224,18 @@ export const useTrendAnalysis = () => {
         }
       }
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Ошибка анализа трендов:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Произошла неизвестная ошибка';
-      setError(errorMessage);
+      
+      // Check if this is a free trial exhaustion error
+      if (error?.isFreeTrialExhausted) {
+        console.log('🔒 Free trial exhausted, showing subscription modal');
+        setShowSubscriptionModal(true);
+        // Don't set error state - we'll show modal instead
+      } else {
+        const errorMessage = error instanceof Error ? error.message : 'Произошла неизвестная ошибка';
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
       // Reset progress after a short delay to allow UI to show completion
@@ -310,6 +321,8 @@ export const useTrendAnalysis = () => {
     retryAnalysis,
     loadSavedAnalysis,
     lastSearchedUsername,
+    showSubscriptionModal,
+    setShowSubscriptionModal,
   };
 };
 

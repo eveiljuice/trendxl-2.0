@@ -172,6 +172,15 @@ export async function analyzeProfileTrends(
     console.error('Backend API error (analyze):', error);
     
     if (axios.isAxiosError(error)) {
+      // Check for free trial exhaustion (403 with specific type)
+      if (error.response?.status === 403 && 
+          error.response?.data?.detail?.type === 'free_trial_exhausted') {
+        const subscriptionError = new Error(error.response.data.detail.message) as any;
+        subscriptionError.isFreeTrialExhausted = true;
+        subscriptionError.todayCount = error.response.data.detail.today_count;
+        throw subscriptionError;
+      }
+      
       if (error.response?.status === 404) {
         throw new Error('Profile not found or unavailable');
       } else if (error.response?.status === 429) {
@@ -237,6 +246,15 @@ export async function analyzeProfileTrendsWithProgress(
     console.error('Backend API error (step-by-step analyze):', error);
     
     if (axios.isAxiosError(error)) {
+      // Check for free trial exhaustion (403 with specific type)
+      if (error.response?.status === 403 && 
+          error.response?.data?.detail?.type === 'free_trial_exhausted') {
+        const subscriptionError = new Error(error.response.data.detail.message) as any;
+        subscriptionError.isFreeTrialExhausted = true;
+        subscriptionError.todayCount = error.response.data.detail.today_count;
+        throw subscriptionError;
+      }
+      
       if (error.response?.status === 404) {
         throw new Error('Profile not found or unavailable');
       } else if (error.response?.status === 429) {
@@ -529,6 +547,15 @@ export async function analyzeCreativeCenterComplete(
     console.error('Complete Creative Center analysis error:', error);
     
     if (axios.isAxiosError(error)) {
+      // Check for free trial exhaustion (403 with specific type)
+      if (error.response?.status === 403 && 
+          error.response?.data?.detail?.type === 'free_trial_exhausted') {
+        const subscriptionError = new Error(error.response.data.detail.message) as any;
+        subscriptionError.isFreeTrialExhausted = true;
+        subscriptionError.todayCount = error.response.data.detail.today_count;
+        throw subscriptionError;
+      }
+      
       if (error.response?.status === 404) {
         throw new Error('No relevant Creative Center hashtags found for this profile\'s niche');
       } else if (error.response?.status === 503) {

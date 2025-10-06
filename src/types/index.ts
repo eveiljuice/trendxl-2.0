@@ -185,3 +185,12 @@ export interface CheckoutSessionResponse {
   checkout_url: string;
   session_id: string;
 }
+
+/**
+ * Subscription error type for free trial exhaustion
+ */
+export interface SubscriptionError extends Error {
+  isFreeTrialExhausted: boolean;
+  todayCount?: number;
+  resetTime?: string;
+}
