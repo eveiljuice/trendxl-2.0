@@ -280,15 +280,12 @@ async def get_current_user(access_token: str) -> Dict[str, Any]:
         User profile data
 
     Raises:
-        ValueError: If token is invalid
+        ValueError: If token is invalid or expired
     """
     try:
         client = get_supabase()
 
-        # Set the session with the token
-        client.auth.set_session(access_token, refresh_token="")
-
-        # Get user from token
+        # Get user from token (Supabase validates JWT internally)
         user_response = client.auth.get_user(access_token)
 
         if user_response.user is None:
@@ -314,6 +311,13 @@ async def get_current_user(access_token: str) -> Dict[str, Any]:
         }
 
     except Exception as e:
+        error_msg = str(e).lower()
+
+        # Check if token is expired
+        if "expired" in error_msg or "invalid jwt" in error_msg:
+            logger.warning(f"⚠️ Token expired or invalid: {e}")
+            raise ValueError("Token expired. Please refresh your session.")
+
         logger.error(f"❌ Get user failed: {e}")
         raise ValueError("Invalid or expired token")
 

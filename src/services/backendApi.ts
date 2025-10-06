@@ -4,6 +4,7 @@
 import axios from 'axios';
 import { TikTokProfile, TikTokPost, TrendVideo, CreativeCenterHashtag, NicheHashtagResponse, CreativeCenterAnalysisRequest, CreativeCenterAnalysisResponse } from '../types';
 import { extractTikTokUsername } from '../utils';
+import { supabase } from '../lib/supabase';
 
 // Backend API configuration
 // На Vercel фронтенд и бекенд на одном домене - используем относительные пути
@@ -54,7 +55,7 @@ const createBackendClient = (customTimeout?: number) => {
     return request;
   });
   
-  // Отладочный interceptor для логирования ответов
+  // Отладочный interceptor для логирования ответов и обработки 401
   client.interceptors.response.use(
     response => {
       console.log('✅ API Success:', {
@@ -66,7 +67,49 @@ const createBackendClient = (customTimeout?: number) => {
       });
       return response;
     },
-    error => {
+    async error => {
+      const originalRequest = error.config;
+      
+      // If 401 Unauthorized and haven't retried yet
+      if (error.response?.status === 401 && !originalRequest._retry) {
+        originalRequest._retry = true;
+        
+        console.log('🔄 Token expired (401), attempting to refresh...');
+        
+        try {
+          // Try to refresh token via Supabase
+          const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+          
+          if (refreshError || !session) {
+            console.error('❌ Failed to refresh token:', refreshError);
+            // Clear storage and redirect to login
+            localStorage.removeItem('auth_token');
+            await supabase.auth.signOut();
+            window.location.href = '/login';
+            return Promise.reject(error);
+          }
+          
+          console.log('✅ Token refreshed successfully, retrying request');
+          const newToken = session.access_token;
+          
+          // Update token in localStorage
+          localStorage.setItem('auth_token', newToken);
+          
+          // Update Authorization header for retry
+          originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+          
+          // Retry the original request with new token
+          return client(originalRequest);
+          
+        } catch (refreshError) {
+          console.error('❌ Token refresh failed:', refreshError);
+          localStorage.removeItem('auth_token');
+          await supabase.auth.signOut();
+          window.location.href = '/login';
+          return Promise.reject(error);
+        }
+      }
+      
       const errorInfo = {
         message: error.message,
         url: error.config?.url,

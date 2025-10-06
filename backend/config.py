@@ -45,7 +45,8 @@ class Settings(BaseSettings):
     debug: bool = Field(default=False, env="DEBUG")
 
     # Redis Configuration (Railway Redis addon URL format)
-    redis_url: str = Field(default="redis://localhost:6379", env="REDIS_URL")
+    # Default to empty string to disable Redis if not explicitly configured
+    redis_url: str = Field(default="", env="REDIS_URL")
     redis_private_url: Optional[str] = Field(
         None, env="REDIS_PRIVATE_URL")  # Railway private URL
 

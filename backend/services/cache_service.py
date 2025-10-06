@@ -15,6 +15,13 @@ class CacheService:
 
     def __init__(self):
         """Initialize Redis connection"""
+        # Disable Redis if REDIS_URL is not explicitly set
+        if not settings.redis_url or settings.redis_url.strip() == "":
+            logger.info("ℹ️ Redis caching disabled (REDIS_URL not configured)")
+            self.redis_client = None
+            self.enabled = False
+            return
+
         try:
             self.redis_client = redis.from_url(
                 settings.redis_url,
@@ -25,7 +32,7 @@ class CacheService:
             # Test connection
             self.redis_client.ping()
             self.enabled = True
-            logger.info("Redis cache service initialized successfully")
+            logger.info("✅ Redis cache service initialized successfully")
         except Exception as e:
             logger.warning(f"Redis not available, caching disabled: {e}")
             logger.info("💡 To enable Redis caching:")

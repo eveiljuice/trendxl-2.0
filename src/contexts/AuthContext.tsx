@@ -97,20 +97,48 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      // Ignore INITIAL_SESSION, TOKEN_REFRESHED, and SIGNED_IN during manual login
-      // to avoid duplicate verifyToken calls
-      if (_event === 'INITIAL_SESSION' || _event === 'TOKEN_REFRESHED' || _event === 'SIGNED_IN') {
+      if (!mounted) return;
+      
+      console.log('🔄 Auth state changed:', _event, session ? 'with session' : 'no session');
+
+      // Handle token refresh
+      if (_event === 'TOKEN_REFRESHED' && session) {
+        console.log('🔄 Token refreshed, updating local storage');
+        const newToken = session.access_token;
+        setToken(newToken);
+        localStorage.setItem('auth_token', newToken);
+        // Verify new token to update user data
+        await verifyToken(newToken);
         return;
       }
 
-      console.log('🔄 Auth state changed:', _event);
-
+      // Handle sign out
       if (_event === 'SIGNED_OUT') {
         console.log('❌ User signed out');
         setToken(null);
         setUser(null);
         localStorage.removeItem('auth_token');
         setIsLoading(false);
+      }
+
+      // Handle token expired - try to refresh
+      if (_event === 'TOKEN_EXPIRED') {
+        console.log('⚠️ Token expired, attempting refresh...');
+        const { data: { session: newSession }, error } = await supabase.auth.refreshSession();
+        
+        if (error || !newSession) {
+          console.error('❌ Failed to refresh token:', error);
+          setToken(null);
+          setUser(null);
+          localStorage.removeItem('auth_token');
+          setIsLoading(false);
+        } else {
+          console.log('✅ Token refreshed successfully');
+          const newToken = newSession.access_token;
+          setToken(newToken);
+          localStorage.setItem('auth_token', newToken);
+          await verifyToken(newToken);
+        }
       }
     });
 
@@ -121,7 +149,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   // Verify token and load user data
-  const verifyToken = async (authToken: string) => {
+  const verifyToken = async (authToken: string, retryCount = 0): Promise<boolean> => {
     try {
       console.log('🔍 Verifying token...');
       const response = await axios.get(`${API_URL}/api/v1/auth/me`, {
@@ -133,22 +161,53 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       console.log('✅ Token verified, user:', response.data.email);
       setUser(response.data);
+      return true;
       
-      // No longer need to set Supabase session - user ID is now passed directly
     } catch (error: any) {
       console.error('❌ Token verification failed:', error.message);
 
-      // Only clear token if it's actually invalid (401/403)
+      // If token is expired (401), try to refresh it once
+      if ((error.response?.status === 401 || error.response?.status === 403) && retryCount === 0) {
+        console.log('🔄 Token expired, attempting to refresh via Supabase...');
+        
+        try {
+          const { data: { session: newSession }, error: refreshError } = await supabase.auth.refreshSession();
+          
+          if (refreshError || !newSession) {
+            throw new Error('Failed to refresh session');
+          }
+          
+          console.log('✅ Token refreshed successfully, retrying verification');
+          const newToken = newSession.access_token;
+          setToken(newToken);
+          localStorage.setItem('auth_token', newToken);
+          
+          // Retry verification with new token (but only once)
+          return await verifyToken(newToken, 1);
+          
+        } catch (refreshError) {
+          console.error('❌ Failed to refresh token:', refreshError);
+          // Clear everything if refresh fails
+          localStorage.removeItem('auth_token');
+          setToken(null);
+          setUser(null);
+          await supabase.auth.signOut();
+          return false;
+        }
+      }
+      
+      // If still unauthorized after refresh or other error
       if (error.response?.status === 401 || error.response?.status === 403) {
         console.log('🗑️ Clearing invalid token');
         localStorage.removeItem('auth_token');
         setToken(null);
         setUser(null);
-        // Clear Supabase session as well
         await supabase.auth.signOut();
+        return false;
       } else {
         // Network error or other issue - keep the token for retry
         console.log('⚠️ Network error, keeping token for retry');
+        return false;
       }
     } finally {
       setIsLoading(false);
