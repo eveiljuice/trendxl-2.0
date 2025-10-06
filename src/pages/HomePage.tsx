@@ -15,8 +15,7 @@ import ErrorState from '../components/ErrorState';
 import VideoModal from '../components/VideoModal';
 import AuthModal from '../components/AuthModal';
 import SubscriptionModal from '../components/SubscriptionModal';
-import { SubscriptionBanner } from '../components/SubscriptionBanner';
-import { FreeTrialCounter } from '../components/FreeTrialCounter';
+import { UnifiedSubscriptionBanner } from '../components/UnifiedSubscriptionBanner';
 
 function HomePage() {
   const location = useLocation();
@@ -144,8 +143,8 @@ function HomePage() {
 
   return (
     <div className="container mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 flex-grow">
-      {/* Subscription Banner */}
-      {isAuthenticated && <SubscriptionBanner refreshTrigger={profile ? Date.now() : undefined} />}
+      {/* Unified Subscription Banner */}
+      {isAuthenticated && <UnifiedSubscriptionBanner refreshTrigger={profile ? Date.now() : undefined} />}
       
       {/* Error State */}
       {error && (
@@ -170,17 +169,12 @@ function HomePage() {
 
       {/* Initial State - Profile Input */}
       {!isLoading && !error && !profile && (
-        <>
-          {/* Free Trial Counter */}
-          {isAuthenticated && <FreeTrialCounter refreshTrigger={profile ? Date.now() : undefined} />}
-          
-          <ProfileInput
-            onSubmit={handleProfileSubmit}
-            isLoading={isLoading}
-            canUseTrial={canUseFreeTrialState}
-            onSubscribeClick={() => setShowSubscriptionModal(true)}
-          />
-        </>
+        <ProfileInput
+          onSubmit={handleProfileSubmit}
+          isLoading={isLoading}
+          canUseTrial={canUseFreeTrialState}
+          onSubscribeClick={() => setShowSubscriptionModal(true)}
+        />
       )}
 
       {/* Results State */}
