@@ -65,8 +65,15 @@ function HomePage() {
             is_admin: trialInfo.is_admin,
             has_subscription: trialInfo.has_subscription,
             can_use_free_trial: trialInfo.can_use_free_trial,
+            today_count: trialInfo.today_count,
+            daily_limit: trialInfo.daily_limit,
             RESULT_canUse: canUse
           });
+          
+          // If user cannot use trial, show subscription modal immediately
+          if (!canUse && !trialInfo.is_admin && !trialInfo.has_subscription) {
+            console.log('⚠️ Free trial exhausted on load, user should see blocked UI');
+          }
         } catch (error) {
           console.error('❌ Failed to check free trial status:', error);
           setCanUseFreeTrialState(true); // Default to allowing if check fails
@@ -77,6 +84,24 @@ function HomePage() {
     };
 
     checkFreeTrialStatus();
+  }, [isAuthenticated]);
+  
+  // Auto-refresh free trial status every 30 seconds when authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    
+    const interval = setInterval(async () => {
+      try {
+        const trialInfo = await getFreeTrialInfo();
+        const canUse = trialInfo.is_admin || trialInfo.has_subscription || trialInfo.can_use_free_trial;
+        setCanUseFreeTrialState(canUse);
+        console.log('🔄 Auto-refreshed free trial status:', canUse);
+      } catch (error) {
+        console.error('❌ Failed to auto-refresh free trial status:', error);
+      }
+    }, 30000); // Every 30 seconds
+    
+    return () => clearInterval(interval);
   }, [isAuthenticated]);
 
   const handleTrendClick = (trend: TrendVideo) => {

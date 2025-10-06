@@ -16,6 +16,14 @@ const ProfileInput: React.FC<ProfileInputProps> = ({
   
   // Determine if input should be disabled
   const isDisabled = isLoading || canUseTrial === false;
+  
+  // Log the state for debugging
+  console.log('🎨 ProfileInput render:', {
+    canUseTrial,
+    isDisabled,
+    isLoading,
+    hasInput: !!input
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,23 +130,28 @@ const ProfileInput: React.FC<ProfileInputProps> = ({
                     <Input
                       value={input}
                       onChange={handleInputChange}
-                      placeholder={isDisabled && canUseTrial === false ? "Subscribe to continue analyzing profiles" : "Enter TikTok profile link or @username"}
+                      placeholder={isDisabled && canUseTrial === false ? "🔒 Subscribe to continue analyzing profiles" : "Enter TikTok profile link or @username"}
                       pl={{ base: 12, sm: 14, md: 16 }}
                       pr={{ base: 4, sm: 6 }}
                       py={{ base: 5, sm: 6, md: 7 }}
                       fontSize={{ base: "md", sm: "lg" }}
-                      bg={isDisabled && canUseTrial === false ? "gray.50" : "transparent"}
+                      bg={isDisabled && canUseTrial === false ? "gray.100" : "transparent"}
                       border="none"
-                      color="black"
-                      _placeholder={{ color: isDisabled && canUseTrial === false ? "red.500" : "gray.500", fontSize: { base: "sm", sm: "md" } }}
-                      _hover={{ bg: isDisabled && canUseTrial === false ? "gray.50" : "transparent" }}
+                      color={isDisabled && canUseTrial === false ? "gray.400" : "black"}
+                      _placeholder={{ 
+                        color: isDisabled && canUseTrial === false ? "red.600" : "gray.500", 
+                        fontSize: { base: "sm", sm: "md" },
+                        fontWeight: isDisabled && canUseTrial === false ? "bold" : "normal"
+                      }}
+                      _hover={{ bg: isDisabled && canUseTrial === false ? "gray.100" : "transparent" }}
                       _focus={{ 
                         outline: "none",
-                        bg: isDisabled && canUseTrial === false ? "gray.50" : "transparent"
+                        bg: isDisabled && canUseTrial === false ? "gray.100" : "transparent"
                       }}
                       borderRadius={{ base: "lg", sm: "xl" }}
                       disabled={isDisabled}
                       className="font-jetbrains"
+                      cursor={isDisabled && canUseTrial === false ? "not-allowed" : "text"}
                     />
                   </Box>
                 </Box>
@@ -155,27 +168,31 @@ const ProfileInput: React.FC<ProfileInputProps> = ({
                 {canUseTrial === false && onSubscribeClick ? (
                   // Show "Subscribe" button when free trial exhausted
                   <Button
-                    onClick={onSubscribeClick}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      console.log('🔴 Subscribe button clicked - opening modal');
+                      onSubscribeClick();
+                    }}
                     w="full"
                     size={{ base: "md", sm: "lg" }}
-                    bg="red.500"
+                    bg="gradient-to-r from-red-500 to-orange-500"
                     color="white"
                     _hover={{ 
-                      bg: "red.600",
+                      bg: "gradient-to-r from-red-600 to-orange-600",
                       transform: "translateY(-2px)",
                       shadow: "xl"
                     }}
                     _active={{
                       transform: "translateY(0px)"
                     }}
-                    className="font-orbitron font-bold text-base sm:text-lg transition-all duration-200"
+                    className="font-orbitron font-bold text-base sm:text-lg transition-all duration-200 animate-pulse"
                     borderRadius={{ base: "lg", sm: "xl" }}
                     py={{ base: 6, sm: 7, md: 8 }}
-                    shadow="lg"
+                    shadow="xl"
                   >
                     <HStack spacing={{ base: 2, sm: 3 }}>
                       <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
-                      <Text fontSize={{ base: "sm", sm: "md" }}>Subscribe for Unlimited Access</Text>
+                      <Text fontSize={{ base: "sm", sm: "md" }}>🚀 Subscribe for Unlimited Access</Text>
                     </HStack>
                   </Button>
                 ) : (
