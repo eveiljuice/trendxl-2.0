@@ -527,18 +527,28 @@ async def record_free_trial_usage(user_id: str, profile_analyzed: Optional[str] 
     try:
         client = get_supabase()
 
+        logger.info(f"🎯 CALLING record_free_trial_usage for user {user_id}, profile: {profile_analyzed}")
+        
         # Call the database function
-        client.rpc('record_free_trial_usage', {
+        response = client.rpc('record_free_trial_usage', {
             'p_user_id': user_id,
             'p_profile_analyzed': profile_analyzed
         }).execute()
 
-        logger.info(f"✅ Recorded free trial usage for user {user_id}")
+        logger.info(f"✅ Successfully recorded free trial usage for user {user_id}")
+        logger.info(f"📊 RPC Response: {response}")
+        
+        # Verify it was recorded by checking the count
+        trial_info = await get_free_trial_info(user_id)
+        logger.info(f"🔍 VERIFICATION - today_count after recording: {trial_info.get('today_count', 'N/A')}")
+        
         return True
 
     except Exception as e:
-        logger.error(f"❌ Failed to record free trial usage: {e}")
-        logger.error(f"❌ Error details: {type(e).__name__}: {str(e)}")
+        logger.error(f"❌ CRITICAL: Failed to record free trial usage for user {user_id}")
+        logger.error(f"❌ Error type: {type(e).__name__}")
+        logger.error(f"❌ Error message: {str(e)}")
+        logger.error(f"❌ Profile analyzed: {profile_analyzed}")
         # Re-raise exception so endpoint can handle it properly
         raise Exception(f"Failed to record free trial usage: {str(e)}") from e
 
