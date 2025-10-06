@@ -10,7 +10,11 @@ import {
 } from '@/services/subscriptionService';
 import { useAuth } from '@/contexts/AuthContext';
 
-export function SubscriptionBanner() {
+interface SubscriptionBannerProps {
+  refreshTrigger?: number;
+}
+
+export function SubscriptionBanner({ refreshTrigger }: SubscriptionBannerProps = {}) {
   const { user } = useAuth();
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
   const [freeTrialInfo, setFreeTrialInfo] = useState<FreeTrialInfo | null>(null);
@@ -23,6 +27,14 @@ export function SubscriptionBanner() {
       loadFreeTrialInfo();
     }
   }, [user]);
+
+  // Auto-refresh when refreshTrigger changes (after successful analysis)
+  useEffect(() => {
+    if (user && refreshTrigger) {
+      console.log('🔄 SubscriptionBanner: Refreshing free trial info after analysis');
+      loadFreeTrialInfo();
+    }
+  }, [refreshTrigger, user]);
 
   const loadSubscriptionStatus = async () => {
     try {

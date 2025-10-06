@@ -81,7 +81,7 @@ function HomePage() {
   return (
     <div className="container mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 flex-grow">
       {/* Subscription Banner */}
-      {isAuthenticated && <SubscriptionBanner />}
+      {isAuthenticated && <SubscriptionBanner refreshTrigger={profile ? Date.now() : undefined} />}
       
       {/* Error State */}
       {error && (
