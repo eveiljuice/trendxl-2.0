@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Box, VStack, Button, Text, HStack, Icon } from '@chakra-ui/react';
 import { Crown, Clock, X } from 'lucide-react';
 import { createPublicPaymentLink } from '@/services/subscriptionService';
-import { calculateResetTime } from '@/utils/timeUtils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAutoRefresh, calculateTimeUntilReset, formatTimeRemaining } from '@/hooks/useAutoRefresh';
 
 interface SubscriptionModalProps {
   isOpen: boolean;
@@ -12,8 +12,22 @@ interface SubscriptionModalProps {
 
 const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ isOpen, onClose }) => {
   const { user } = useAuth();
-  const [loading, setLoading] = React.useState(false);
-  const resetTime = calculateResetTime();
+  const [loading, setLoading] = useState(false);
+  const [resetTime, setResetTime] = useState('');
+
+  // Update reset time
+  const updateResetTime = useCallback(() => {
+    const { hours, minutes } = calculateTimeUntilReset();
+    setResetTime(formatTimeRemaining(hours, minutes));
+  }, []);
+
+  // Update time on mount and every 60 seconds
+  useEffect(() => {
+    updateResetTime();
+  }, [updateResetTime]);
+
+  // Auto-refresh reset time every 60 seconds when modal is open
+  useAutoRefresh(updateResetTime, 60000, isOpen);
 
   const handleSubscribe = async () => {
     setLoading(true);

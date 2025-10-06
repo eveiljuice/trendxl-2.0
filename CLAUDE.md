@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **TrendXL 2.0** is a full-stack TikTok trend analysis platform that helps users discover trending content by analyzing TikTok profiles. It uses AI to extract relevant hashtags and find trending videos.
 
 **Stack:**
+
 - Frontend: React + TypeScript + Vite + Chakra UI + Tailwind CSS
 - Backend: FastAPI (Python) + Supabase (PostgreSQL) + Stripe
 - Deployment: Vercel (frontend + serverless backend)
@@ -14,6 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ### Frontend Development
+
 ```bash
 npm run dev              # Start dev server on port 3000
 npm run build           # Build for production (outputs to dist/)
@@ -23,6 +25,7 @@ npm run lint:fix        # Fix ESLint issues
 ```
 
 ### Backend Development
+
 ```bash
 # From backend/ directory
 python run_server.py    # Start FastAPI server on port 8000
@@ -33,6 +36,7 @@ npm run dev:full        # Run both frontend and backend concurrently
 ```
 
 ### Testing
+
 ```bash
 npx playwright test                    # Run all Playwright tests
 npx playwright test --ui              # Run tests in UI mode
@@ -50,6 +54,7 @@ cd backend && python test_free_trial.py <user-uuid>
 **Development:** Frontend (localhost:3000) → Backend (localhost:8000)
 
 **Production (Vercel):**
+
 - Frontend and backend both deployed on same domain
 - Frontend uses relative paths (no explicit backend URL)
 - API routes handled via `vercel.json` rewrites to `/api/` serverless functions
@@ -58,6 +63,7 @@ cd backend && python test_free_trial.py <user-uuid>
 ### Key Services (Backend)
 
 **Trend Analysis Pipeline:**
+
 1. `ensemble_service.py` - Fetches TikTok profile/posts via Ensemble Data API
 2. `openai_service.py` - Extracts hashtags using GPT-4o
 3. `perplexity_service.py` - Discovers Creative Center hashtags via Perplexity
@@ -65,6 +71,7 @@ cd backend && python test_free_trial.py <user-uuid>
 5. `trend_analysis_service.py` - Orchestrates the entire pipeline
 
 **Other Services:**
+
 - `cache_service.py` - Redis caching for API responses
 - `advanced_creative_center_service.py` - TikTok Creative Center hashtag discovery
 - `auth_service_supabase.py` - User authentication via Supabase
@@ -82,12 +89,17 @@ cd backend && python test_free_trial.py <user-uuid>
 ### Subscription & Free Trial System
 
 **Free Trial:**
+
 - New users get 1 free analysis per day
 - Tracked in `daily_free_analyses` table (Supabase)
 - Resets daily at 00:00 UTC
 - Check via `/api/v1/free-trial/info` endpoint
+- **Auto-refresh system**: Frontend components auto-update every 60 seconds
+- **Pre-check validation**: Status checked BEFORE backend request for better UX
+- **Real-time countdown**: Shows exact time until reset with auto-update
 
 **Subscription (Stripe):**
+
 - Checkout flow: Create session → User pays → Webhook updates Supabase
 - Check subscription: `/api/v1/subscription/check`
 - Admin users bypass all limits
@@ -96,6 +108,7 @@ cd backend && python test_free_trial.py <user-uuid>
 ### Database Schema (Supabase)
 
 **profiles table (auth.users):**
+
 - `id` (UUID) - Primary key
 - `email`, `username`, `password_hash`
 - `stripe_customer_id`, `subscription_status`, `subscription_end_date`
@@ -103,6 +116,7 @@ cd backend && python test_free_trial.py <user-uuid>
 - `full_name`, `avatar_url`, `bio`
 
 **scan_history table:**
+
 - Stores complete analysis results for "My Trends" feature
 - `id` (UUID), `user_id` (references auth.users)
 - `username` (TikTok username analyzed)
@@ -112,22 +126,26 @@ cd backend && python test_free_trial.py <user-uuid>
 - RLS enabled - users can only view/edit their own scans
 
 **daily_free_analyses table:**
+
 - Tracks free trial usage per user per day
 - Unique constraint: one user per day
 - Auto-cleanup after 90 days
 
 **token_usage table:**
+
 - Tracks API token consumption (OpenAI, Perplexity, Ensemble)
 - Used for analytics and cost tracking
 
 ## Environment Variables
 
 ### Frontend (.env or Vercel)
+
 ```bash
 VITE_BACKEND_API_URL=        # Empty for Vercel, http://localhost:8000 for dev
 ```
 
 ### Backend (.env or Vercel)
+
 ```bash
 # Required
 SUPABASE_URL=                # Supabase project URL
@@ -148,6 +166,7 @@ STRIPE_WEBHOOK_SECRET=       # For Stripe webhook verification
 ## Code Style & Conventions
 
 ### TypeScript/React (from .cursor/rules)
+
 - Use functional components with TypeScript interfaces (not types)
 - Prefer named exports for components
 - Use descriptive variable names with auxiliary verbs (isLoading, hasError)
@@ -156,6 +175,7 @@ STRIPE_WEBHOOK_SECRET=       # For Stripe webhook verification
 - Mobile-first responsive design
 
 ### Python/FastAPI
+
 - Async/await for all I/O operations
 - Pydantic models for request/response validation
 - Type hints everywhere
@@ -165,18 +185,21 @@ STRIPE_WEBHOOK_SECRET=       # For Stripe webhook verification
 ## API Endpoints
 
 ### Authentication
+
 - `POST /api/v1/auth/register` - Register new user
 - `POST /api/v1/auth/login` - Login user
 - `GET /api/v1/auth/me` - Get current user info
 - `PUT /api/v1/auth/profile` - Update user profile
 
 ### Trend Analysis
+
 - `POST /api/v1/analyze` - Main analysis endpoint (requires auth)
   - Checks subscription/free trial before processing
   - Records token usage
   - Returns profile, posts, hashtags, trending videos
 
 ### Subscription
+
 - `GET /api/v1/subscription/info` - Get subscription details
 - `GET /api/v1/subscription/check` - Check active subscription
 - `POST /api/v1/subscription/checkout` - Create Stripe checkout session
@@ -185,14 +208,17 @@ STRIPE_WEBHOOK_SECRET=       # For Stripe webhook verification
 - `POST /api/v1/subscription/reactivate` - Reactivate subscription
 
 ### Free Trial
+
 - `GET /api/v1/free-trial/info` - Get free trial status
 
 ### Health
+
 - `GET /health` - Health check endpoint
 
 ## Common Development Tasks
 
 ### Adding a new API endpoint
+
 1. Define Pydantic model in `backend/models.py`
 2. Add route handler in `backend/main.py`
 3. Add corresponding service function in `backend/services/`
@@ -200,17 +226,20 @@ STRIPE_WEBHOOK_SECRET=       # For Stripe webhook verification
 5. Update TypeScript types in `src/types/`
 
 ### Modifying the analysis pipeline
+
 - Main orchestration: `backend/services/trend_analysis_service.py`
 - Individual services in `backend/services/`
 - Token usage tracking built into each service
 - Caching via `cache_service.py`
 
 ### Database migrations
+
 - SQL files in `backend/` directory
 - Run via Supabase Dashboard → SQL Editor
 - Test locally before production
 
 **Migration files (run in order):**
+
 1. `supabase_migration.sql` - Base tables (users, trend_feed, etc.)
 2. `supabase_token_usage_migration.sql` - Token usage tracking
 3. `supabase_stripe_migration.sql` - Stripe subscription fields
@@ -221,12 +250,15 @@ STRIPE_WEBHOOK_SECRET=       # For Stripe webhook verification
 **Important:** The `scan_history` table is required for the "My Trends" feature to work. Without it, analysis results won't be saved.
 
 ### Deployment
+
 **Vercel (recommended):**
+
 ```bash
 git push origin main  # Auto-deploys via Vercel integration
 ```
 
 **Manual deploy:**
+
 ```bash
 vercel --prod
 ```
@@ -249,11 +281,13 @@ vercel --prod
 **Symptom:** `/api/v1/analyze` endpoint returns 504 error in production
 
 **Causes:**
+
 - Vercel serverless function timeout (default 60s, now set to 300s)
 - Too many posts being fetched and analyzed
 - Multiple sequential API calls (Ensemble → OpenAI → Perplexity → Ensemble)
 
 **Solutions:**
+
 1. ✅ Increased Vercel timeout to 300s in `vercel.json`
 2. ✅ Reduced `max_posts_per_user` from 50 to 20 in `backend/config.py`
 3. Enable Redis caching to speed up repeated requests
@@ -264,6 +298,7 @@ vercel --prod
 **Symptom:** Logs show `⚠️ No avatar found` or `⚠️ No cover image found`
 
 **Not Actually an Error:**
+
 - These are informational warnings, not failures
 - System has fallback mechanisms:
   - Avatars: Returns empty string when not found
@@ -271,6 +306,7 @@ vercel --prod
 - Profile analysis completes successfully despite warnings
 
 **Root Cause:**
+
 - Ensemble Data API response structure varies by profile
 - Some profiles don't expose avatar URLs in expected fields
 - TikTok API may return different image structures
@@ -280,6 +316,7 @@ vercel --prod
 **Symptom:** `/api/v1/analyze-creative-center` returns 404
 
 **Solution:**
+
 - This endpoint may not be implemented on Vercel
 - Frontend falls back to traditional analysis automatically
 - Check `backend/main.py` for Creative Center endpoint implementation

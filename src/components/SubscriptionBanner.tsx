@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Box, Text, Button, HStack, VStack, Icon, Badge } from '@chakra-ui/react';
 import { AlertCircle, CreditCard, Check, Gift } from 'lucide-react';
 import {
@@ -9,6 +9,7 @@ import {
   type FreeTrialInfo,
 } from '@/services/subscriptionService';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 
 interface SubscriptionBannerProps {
   refreshTrigger?: number;
@@ -21,22 +22,8 @@ export function SubscriptionBanner({ refreshTrigger }: SubscriptionBannerProps =
   const [loading, setLoading] = useState(true);
   const [creatingPayment, setCreatingPayment] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      loadSubscriptionStatus();
-      loadFreeTrialInfo();
-    }
-  }, [user]);
-
-  // Auto-refresh when refreshTrigger changes (after successful analysis)
-  useEffect(() => {
-    if (user && refreshTrigger) {
-      console.log('🔄 SubscriptionBanner: Refreshing free trial info after analysis');
-      loadFreeTrialInfo();
-    }
-  }, [refreshTrigger, user]);
-
-  const loadSubscriptionStatus = async () => {
+  // Memoize loading functions to prevent unnecessary re-renders
+  const loadSubscriptionStatus = useCallback(async () => {
     try {
       setLoading(true);
       const status = await checkSubscriptionStatus();
@@ -52,12 +39,13 @@ export function SubscriptionBanner({ refreshTrigger }: SubscriptionBannerProps =
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const loadFreeTrialInfo = async () => {
+  const loadFreeTrialInfo = useCallback(async () => {
     try {
       const info = await getFreeTrialInfo();
       setFreeTrialInfo(info);
+      console.log('✅ SubscriptionBanner: Free trial info loaded', info);
     } catch (error) {
       console.error('Failed to load free trial info:', error);
       // Set fallback info to show banner even if API fails
@@ -67,10 +55,33 @@ export function SubscriptionBanner({ refreshTrigger }: SubscriptionBannerProps =
         daily_limit: 1,
         total_free_analyses: 0,
         has_subscription: false,
+        is_admin: false,
         message: 'You get 1 free profile analysis per day!',
       });
     }
-  };
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    if (user) {
+      loadSubscriptionStatus();
+      loadFreeTrialInfo();
+    }
+  }, [user, loadSubscriptionStatus, loadFreeTrialInfo]);
+
+  // Auto-refresh when refreshTrigger changes (after successful analysis)
+  useEffect(() => {
+    if (user && refreshTrigger) {
+      console.log('🔄 SubscriptionBanner: Refreshing free trial info after analysis');
+      loadFreeTrialInfo();
+    }
+  }, [refreshTrigger, user, loadFreeTrialInfo]);
+
+  // Auto-refresh subscription and trial info every 60 seconds
+  useAutoRefresh(() => {
+    loadSubscriptionStatus();
+    loadFreeTrialInfo();
+  }, 60000, !!user);
 
   const handleSubscribe = async () => {
     try {

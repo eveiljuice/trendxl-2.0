@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Box, HStack, Text, Badge, Icon } from '@chakra-ui/react';
 import { Clock, Sparkles, CheckCircle } from 'lucide-react';
 import { getFreeTrialInfo, type FreeTrialInfo } from '@/services/subscriptionService';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAutoRefresh, calculateTimeUntilReset, formatTimeRemaining } from '@/hooks/useAutoRefresh';
 
 interface FreeTrialCounterProps {
   refreshTrigger?: number;
@@ -12,23 +13,10 @@ export const FreeTrialCounter: React.FC<FreeTrialCounterProps> = ({ refreshTrigg
   const { user } = useAuth();
   const [trialInfo, setTrialInfo] = useState<FreeTrialInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [resetTime, setResetTime] = useState('');
 
-  useEffect(() => {
-    if (user) {
-      loadTrialInfo();
-    } else {
-      setLoading(false);
-    }
-  }, [user]);
-
-  // Auto-refresh when refreshTrigger changes
-  useEffect(() => {
-    if (user && refreshTrigger) {
-      loadTrialInfo();
-    }
-  }, [refreshTrigger, user]);
-
-  const loadTrialInfo = async () => {
+  // Memoize loadTrialInfo to prevent unnecessary re-renders
+  const loadTrialInfo = useCallback(async () => {
     try {
       setLoading(true);
       const info = await getFreeTrialInfo();
@@ -38,20 +26,36 @@ export const FreeTrialCounter: React.FC<FreeTrialCounterProps> = ({ refreshTrigg
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const getResetTime = () => {
-    const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
-    
-    const diff = tomorrow.getTime() - now.getTime();
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
-    return `${hours}h ${minutes}m`;
-  };
+  // Update reset time every second
+  const updateResetTime = useCallback(() => {
+    const { hours, minutes } = calculateTimeUntilReset();
+    setResetTime(formatTimeRemaining(hours, minutes));
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    if (user) {
+      loadTrialInfo();
+      updateResetTime();
+    } else {
+      setLoading(false);
+    }
+  }, [user, loadTrialInfo, updateResetTime]);
+
+  // Auto-refresh when refreshTrigger changes
+  useEffect(() => {
+    if (user && refreshTrigger) {
+      loadTrialInfo();
+    }
+  }, [refreshTrigger, user, loadTrialInfo]);
+
+  // Auto-refresh trial info every 60 seconds (when user is authenticated)
+  useAutoRefresh(loadTrialInfo, 60000, !!user);
+
+  // Update reset time every 60 seconds
+  useAutoRefresh(updateResetTime, 60000, !!user && !trialInfo?.has_subscription);
 
   // Don't show if user is not authenticated
   if (!user) {
@@ -118,7 +122,7 @@ export const FreeTrialCounter: React.FC<FreeTrialCounterProps> = ({ refreshTrigg
             Free Scans Today:
           </Text>
           <Badge 
-            colorPalette={canUseToday ? "purple" : "orange"} 
+            colorScheme={canUseToday ? "purple" : "orange"} 
             variant="solid"
             fontSize="sm"
             px={2}
@@ -135,7 +139,7 @@ export const FreeTrialCounter: React.FC<FreeTrialCounterProps> = ({ refreshTrigg
             <HStack gap={2}>
               <Icon as={Clock} color="orange.600" boxSize={4} />
               <Text fontSize="sm" color="orange.700" className="font-inter">
-                Resets in <strong>{getResetTime()}</strong>
+                Resets in <strong>{resetTime}</strong>
               </Text>
             </HStack>
           </>

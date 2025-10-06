@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { TikTokProfile, AppState } from '../types';
 import { analyzeProfileTrends, analyzeProfileTrendsWithProgress, analyzeCreativeCenterComplete, checkBackendHealth } from '../services/backendApi';
 import { saveScanToHistory, saveLastSearchedUsername, getLastSearchedUsername } from '../services/scanHistoryService';
-import { checkSubscriptionStatus } from '../services/subscriptionService';
+import { checkSubscriptionStatus, getFreeTrialInfo } from '../services/subscriptionService';
 import { useAuth } from '../contexts/AuthContext';
 // Mock data service removed - using only real data
 import { extractTikTokUsername } from '../utils';
@@ -82,7 +82,30 @@ export const useTrendAnalysis = () => {
       const username = extractTikTokUsername(profileInput);
       console.log(`🚀 Начинаем анализ профиля через Python бэкенд: ${username}`);
 
-      // Check backend health first
+      // Check free trial status BEFORE making the API call (for better UX)
+      if (user) {
+        try {
+          const trialInfo = await getFreeTrialInfo();
+          
+          // If user is not admin and doesn't have subscription
+          if (!trialInfo.is_admin && !trialInfo.has_subscription) {
+            // Check if they can use free trial
+            if (!trialInfo.can_use_free_trial) {
+              console.log('🔒 Free trial exhausted, showing subscription modal immediately');
+              setShowSubscriptionModal(true);
+              setLoading(false);
+              return; // Don't proceed with analysis
+            } else {
+              console.log('🎁 User can use free trial, proceeding with analysis');
+            }
+          }
+        } catch (error) {
+          console.error('Failed to check free trial status:', error);
+          // Continue with analysis even if check fails - backend will handle it
+        }
+      }
+
+      // Check backend health
       const health = await checkBackendHealth();
       if (health.status !== 'healthy' && health.status !== 'degraded') {
         throw new Error('Backend сервис недоступен. Попробуйте позже.');
