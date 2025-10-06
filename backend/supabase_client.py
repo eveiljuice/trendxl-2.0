@@ -18,7 +18,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 # Use service role key for backend operations (bypasses RLS)
 # Try multiple possible env var names for compatibility
 SUPABASE_SERVICE_KEY = (
-    os.getenv("SUPABASE_SERVICE_KEY") or 
+    os.getenv("SUPABASE_SERVICE_KEY") or
     os.getenv("SUPABASE_SERVICE_ROLE_KEY") or
     os.getenv("SUPABASE_KEY") or
     os.getenv("SUPABASE_ANON_KEY") or
@@ -42,7 +42,8 @@ def init_supabase() -> Client:
 
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        logger.info(f"✅ Supabase client initialized successfully (using {'SERVICE_KEY' if 'service_role' in SUPABASE_KEY.lower() or len(SUPABASE_KEY) > 200 else 'ANON_KEY'})")
+        logger.info(
+            f"✅ Supabase client initialized successfully (using {'SERVICE_KEY' if 'service_role' in SUPABASE_KEY.lower() or len(SUPABASE_KEY) > 200 else 'ANON_KEY'})")
         return supabase
     except Exception as e:
         logger.error(f"❌ Failed to initialize Supabase client: {e}")
@@ -527,25 +528,29 @@ async def record_free_trial_usage(user_id: str, profile_analyzed: Optional[str] 
     try:
         client = get_supabase()
 
-        logger.info(f"🎯 CALLING record_free_trial_usage for user {user_id}, profile: {profile_analyzed}")
-        
+        logger.info(
+            f"🎯 CALLING record_free_trial_usage for user {user_id}, profile: {profile_analyzed}")
+
         # Call the database function
         response = client.rpc('record_free_trial_usage', {
             'p_user_id': user_id,
             'p_profile_analyzed': profile_analyzed
         }).execute()
 
-        logger.info(f"✅ Successfully recorded free trial usage for user {user_id}")
+        logger.info(
+            f"✅ Successfully recorded free trial usage for user {user_id}")
         logger.info(f"📊 RPC Response: {response}")
-        
+
         # Verify it was recorded by checking the count
         trial_info = await get_free_trial_info(user_id)
-        logger.info(f"🔍 VERIFICATION - today_count after recording: {trial_info.get('today_count', 'N/A')}")
-        
+        logger.info(
+            f"🔍 VERIFICATION - today_count after recording: {trial_info.get('today_count', 'N/A')}")
+
         return True
 
     except Exception as e:
-        logger.error(f"❌ CRITICAL: Failed to record free trial usage for user {user_id}")
+        logger.error(
+            f"❌ CRITICAL: Failed to record free trial usage for user {user_id}")
         logger.error(f"❌ Error type: {type(e).__name__}")
         logger.error(f"❌ Error message: {str(e)}")
         logger.error(f"❌ Profile analyzed: {profile_analyzed}")

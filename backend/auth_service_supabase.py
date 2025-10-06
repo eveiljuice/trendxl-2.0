@@ -188,9 +188,37 @@ async def register_user(user_data: UserCreate) -> Dict[str, Any]:
         # Get admin status from database
         is_admin = await get_user_admin_status(auth_response.user.id)
 
-        # Return response with or without session
+        # CRITICAL FIX: If no session returned (email confirmation required), auto-login
+        if not auth_response.session:
+            logger.warning(
+                f"⚠️ No session after registration, attempting auto-login for {user_data.email}")
+            try:
+                # Immediately login the user to get a session
+                login_response = client.auth.sign_in_with_password({
+                    "email": user_data.email,
+                    "password": user_data.password
+                })
+
+                if login_response.session:
+                    logger.info(
+                        f"✅ Auto-login successful for {user_data.email}")
+                    auth_response = login_response  # Use login response
+                else:
+                    logger.error(f"❌ Auto-login failed - no session returned")
+                    raise ValueError(
+                        "Registration successful but automatic login failed. "
+                        "Please check your email for confirmation link or contact support."
+                    )
+            except Exception as login_error:
+                logger.error(f"❌ Auto-login failed: {login_error}")
+                raise ValueError(
+                    "Registration successful but automatic login failed. "
+                    "Please try logging in manually or check your email for confirmation link."
+                )
+
+        # Return response with session
         return {
-            "access_token": auth_response.session.access_token if auth_response.session else "",
+            "access_token": auth_response.session.access_token,
             "token_type": "bearer",
             "user": {
                 "id": auth_response.user.id,
