@@ -661,8 +661,8 @@ async def creative_center_hashtags(
 
 @app.post("/api/v1/analyze-creative-center", response_model=CreativeCenterAnalysisResponse)
 async def analyze_creative_center_complete(
-    request: CreativeCenterAnalysisRequest
-    # rate_limit: None = Depends(check_rate_limit)
+    request: CreativeCenterAnalysisRequest,
+    current_user: Optional[UserProfile] = Depends(get_current_user)
 ):
     """
     Complete Creative Center + Ensemble Data analysis workflow.
@@ -672,13 +672,86 @@ async def analyze_creative_center_complete(
     2. Searches trending videos for each hashtag via Ensemble Data
     3. Applies intelligent filtering and relevance analysis
     4. Returns comprehensive results with metadata
+    
+    Free users get 1 analysis per day. Subscription required for unlimited access.
     """
     try:
         from utils import extract_tiktok_username
 
+        # Check if user is authenticated
+        if not current_user:
+            raise HTTPException(
+                status_code=401,
+                detail={
+                    "error": "Authentication required",
+                    "message": "Please log in to use trend analysis.",
+                    "action": "login"
+                }
+            )
+
+        # Track if this is a free trial usage
+        is_free_trial_usage = False
+
+        # Admins bypass all checks
+        if current_user.is_admin:
+            logger.info(
+                f"🔑 Admin user {current_user.username} bypassing all checks")
+        else:
+            # Check if user can analyze (subscription or free trial)
+            can_analyze, reason, details = await check_user_can_analyze(current_user.id)
+
+            if not can_analyze:
+                trial_info = details.get("trial_info", {})
+                today_count = trial_info.get(
+                    "today_count", 0) if trial_info else 0
+
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "error": "Analysis limit reached",
+                        "message": details.get("message", "You've used your free daily analysis. Subscribe to get unlimited access!"),
+                        "today_count": today_count,
+                        "action": "subscribe",
+                        "type": "free_trial_exhausted"
+                    }
+                )
+
+            # Log what type of access user is using
+            if reason == "free_trial":
+                is_free_trial_usage = True
+                logger.info(
+                    f"🎁 User {current_user.username} using FREE TRIAL for Creative Center analysis")
+            elif reason == "active_subscription":
+                logger.info(
+                    f"💳 User {current_user.username} using SUBSCRIPTION for Creative Center analysis")
+
         username = extract_tiktok_username(request.profile_url)
         logger.info(
             f"🚀 Starting complete Creative Center analysis for @{username}")
+        logger.info(f"👤 User: {current_user.username} (ID: {current_user.id})")
+
+        # CRITICAL: Record free trial usage IMMEDIATELY for free users
+        if is_free_trial_usage:
+            try:
+                success = await record_free_trial_usage(current_user.id, username)
+                if not success:
+                    logger.error(
+                        f"❌ record_free_trial_usage returned False for {current_user.username}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail="Failed to record free trial usage. Please try again."
+                    )
+                logger.info(
+                    f"🎁 Free trial used by {current_user.username} for @{username} (Creative Center)")
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"❌ Failed to record free trial usage: {e}")
+                logger.error(f"❌ Error type: {type(e).__name__}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to record free trial usage: {str(e)}"
+                )
 
         # Check API keys
         if not getattr(settings, 'perplexity_api_key', None) or settings.perplexity_api_key.strip() in [
