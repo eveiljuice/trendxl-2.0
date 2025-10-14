@@ -6,7 +6,7 @@ import logging
 import asyncio
 from contextlib import asynccontextmanager
 from typing import Optional
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
@@ -1504,16 +1504,35 @@ async def reactivate_user_subscription(
 
 # Stripe webhook endpoint for handling subscription events
 @app.post("/api/v1/webhook/stripe")
-async def stripe_webhook(request: dict):
+async def stripe_webhook(request: Request):
     """Handle Stripe webhook events"""
     try:
-        # TODO: Verify webhook signature in production
-        # from stripe import StripeClient
-        # client = StripeClient(settings.stripe_api_key)
-        # event = client.construct_event(payload, sig_header, settings.stripe_webhook_secret)
+        # Get raw body and signature for webhook verification
+        from fastapi import Request
+        import stripe
 
-        event_type = request.get("type")
-        data = request.get("data", {}).get("object", {})
+        payload = await request.body()
+        sig_header = request.headers.get("stripe-signature")
+
+        # Verify webhook signature in production
+        if settings.stripe_webhook_secret:
+            try:
+                event = stripe.Webhook.construct_event(
+                    payload, sig_header, settings.stripe_webhook_secret
+                )
+                webhook_data = event
+                logger.info("✅ Webhook signature verified")
+            except stripe.error.SignatureVerificationError as e:
+                logger.error(f"❌ Webhook signature verification failed: {e}")
+                raise HTTPException(status_code=400, detail="Invalid signature")
+        else:
+            # Development mode without signature verification
+            import json
+            webhook_data = json.loads(payload)
+            logger.warning("⚠️ Webhook signature verification skipped (no secret configured)")
+
+        event_type = webhook_data.get("type")
+        data = webhook_data.get("data", {}).get("object", {})
 
         logger.info(f"📨 Received Stripe webhook: {event_type}")
 
@@ -1599,7 +1618,7 @@ async def stripe_webhook(request: dict):
             subscription_id = session.get("subscription")
 
             logger.info(
-                f"✅ Checkout completed: session={session.get('id')}, customer={customer_id}, email={customer_email}")
+                f"✅ Checkout completed: session={session.get('id')}, customer={customer_id}, email={customer_email}, subscription={subscription_id}")
 
             # Try to find user by email and link Stripe customer
             if customer_email and customer_id:
@@ -1611,13 +1630,75 @@ async def stripe_webhook(request: dict):
                         "*").eq("email", customer_email).execute()
                     if response.data:
                         user = response.data[0]
+                        user_id = user["id"]
+
                         # Update Stripe customer ID if not set
                         if not user.get("stripe_customer_id"):
-                            await update_user_stripe_customer(user["id"], customer_id)
+                            await update_user_stripe_customer(user_id, customer_id)
                             logger.info(
-                                f"✅ Linked Stripe customer {customer_id} to user {user['id']}")
+                                f"✅ Linked Stripe customer {customer_id} to user {user_id}")
+
+                        # Save subscription_id and activate subscription
+                        if subscription_id:
+                            await update_user_subscription(
+                                user_id=user_id,
+                                subscription_id=subscription_id,
+                                status="active"
+                            )
+                            logger.info(
+                                f"✅ Activated subscription {subscription_id} for user {user_id}")
                 except Exception as e:
-                    logger.error(f"❌ Failed to link customer: {e}")
+                    logger.error(f"❌ Failed to process checkout completion: {e}")
+
+        elif event_type == "invoice.payment_succeeded":
+            # Recurring payment succeeded
+            invoice = data
+            customer_id = invoice.get("customer")
+            subscription_id = invoice.get("subscription")
+
+            logger.info(
+                f"✅ Payment succeeded: invoice={invoice.get('id')}, customer={customer_id}, subscription={subscription_id}")
+
+            if customer_id and subscription_id:
+                # Find user by Stripe customer ID
+                user = await get_user_by_stripe_customer_id(customer_id)
+                if user:
+                    # Update subscription status to "active"
+                    await update_user_subscription(
+                        user_id=user["id"],
+                        subscription_id=subscription_id,
+                        status="active"
+                    )
+                    logger.info(
+                        f"✅ Renewed subscription {subscription_id} for user {user['id']}")
+                else:
+                    logger.warning(
+                        f"⚠️ User not found for Stripe customer: {customer_id}")
+
+        elif event_type == "invoice.payment_failed":
+            # Recurring payment failed
+            invoice = data
+            customer_id = invoice.get("customer")
+            subscription_id = invoice.get("subscription")
+
+            logger.warning(
+                f"⚠️ Payment failed: invoice={invoice.get('id')}, customer={customer_id}, subscription={subscription_id}")
+
+            if customer_id and subscription_id:
+                # Find user by Stripe customer ID
+                user = await get_user_by_stripe_customer_id(customer_id)
+                if user:
+                    # Update subscription status to "past_due"
+                    await update_user_subscription(
+                        user_id=user["id"],
+                        subscription_id=subscription_id,
+                        status="past_due"
+                    )
+                    logger.warning(
+                        f"⚠️ Marked subscription {subscription_id} as past_due for user {user['id']}")
+                else:
+                    logger.warning(
+                        f"⚠️ User not found for Stripe customer: {customer_id}")
 
         return {"received": True}
 
